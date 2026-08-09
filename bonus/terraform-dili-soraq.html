@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bonus: Terraform Dili — Yeni Başlayanlar üçün Soraq Kitabçası · DPE-07</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #F7F9F8; color: #0F172A; min-height: 100vh; line-height: 1.6; }
+    header { background: #0F172A; padding: 28px 48px 24px; border-bottom: 3px solid #00A859; }
+    header h1 { color: #00A859; font-size: 1.45rem; font-weight: 700; letter-spacing: -0.3px; }
+    header p { color: #848688; font-size: 0.82rem; margin-top: 5px; }
+    .badge { display: inline-block; background: #9333EA; color: white; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+    main { max-width: 900px; margin: 36px auto; padding: 0 24px; }
+    .intro { background: white; border: 1px solid #E2E8F0; border-left: 4px solid #9333EA; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 28px; font-size: 0.875rem; color: #334155; }
+    .section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #848688; margin: 32px 0 14px; }
+    .card { background: white; border: 1px solid #E2E8F0; border-radius: 10px; padding: 18px 22px; margin-bottom: 16px; }
+    .card h2 { font-size: 1rem; color: #00703A; margin-bottom: 8px; }
+    .card p, .card li { font-size: 0.86rem; color: #334155; }
+    .card ul, .card ol { padding-left: 22px; margin: 8px 0; }
+    .card li { margin-bottom: 5px; }
+    table { font-size: 0.82rem; border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th { background: #0F172A; color: #A7F3D0; padding: 7px 12px; text-align: left; font-weight: 700; }
+    td { border: 1px solid #E2E8F0; padding: 7px 12px; background: white; vertical-align: top; }
+    tr:nth-child(even) td { background: #F8FAFC; }
+    code { background: #E8F5EE; color: #00703A; padding: 2px 6px; border-radius: 4px; font-size: 0.82em; border: 1px solid #C3E4D0; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    pre { background: #1E293B; color: #E2E8F0; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #00A859; font-size: 0.78rem; line-height: 1.55; margin: 10px 0; overflow-x: auto; color-scheme: dark; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    pre code { background: transparent; color: #E2E8F0; border: none; padding: 0; font-size: 1em; }
+    pre .c { color: #64748B; }
+    pre .k { color: #C084FC; }
+    pre .s { color: #FBBF24; }
+    pre .g { color: #4ADE80; }
+    .tip { background: #F0FAF4; border: 1px solid #C3E4D0; border-left: 4px solid #00A859; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 0.84rem; }
+    .warn { background: #FFF8E1; border: 1px solid #FDE68A; border-left: 4px solid #F59E0B; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 0.84rem; color: #78350F; }
+    .ai { background: #F3E8FF; border: 1px solid #D8B4FE; border-left: 4px solid #9333EA; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 0.84rem; color: #581C87; }
+    .two { display: flex; gap: 14px; }
+    .two > div { flex: 1; min-width: 0; }
+    footer { text-align: center; padding: 24px; color: #848688; font-size: 0.75rem; border-top: 1px solid #E2E8F0; margin-top: 30px; }
+    a { color: #00A859; font-weight: 600; }
+    .toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .toc a { background: white; border: 1px solid #C3E4D0; border-radius: 6px; padding: 4px 12px; font-size: 0.78rem; text-decoration: none; }
+    @media (max-width: 720px) { .two { flex-direction: column; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Terraform Dili — Soraq Kitabçası <span class="badge">BONUS</span></h1>
+  <p>Terraform + Copilot Modulu · DPE-07 · variables, outputs, tfvars, locals, tiplər, istinadlar — yeni başlayanlar üçün</p>
+</header>
+
+<main>
+
+  <div class="intro">
+    Bu sənəd — <b>"Server Qurmazdan Əvvəl Nə Lazımdır?"</b> sənədinin davamıdır. Orada infrastrukturun təməl qatlarına baxdıq;
+    burada isə <b>Terraform dilinin özünün</b> təməl daşlarını yığırıq: dəyişənlər, çıxışlar, dəyər faylları, tiplər, istinadlar.
+    Kursda hamısına toxunmuşuq — bu səhifə onları bir yerdə saxlayan <b>stolüstü arayışdır</b>.
+    <div class="toc">
+      <a href="#fayllar">📁 Fayl xəritəsi</a>
+      <a href="#variable">📥 variable</a>
+      <a href="#deyer">🎚️ Dəyər vermə yolları</a>
+      <a href="#output">📤 output</a>
+      <a href="#locals">🔁 locals</a>
+      <a href="#tipler">🔤 Tip sistemi</a>
+      <a href="#istinadlar">🔗 İstinadlar</a>
+      <a href="#data">🔍 data vs resource</a>
+      <a href="#coxluq">✖️ count / for_each</a>
+      <a href="#emrler">⌨️ Əmrlər</a>
+      <a href="#gitignore">🙈 .gitignore</a>
+    </div>
+  </div>
+
+  <p class="section-title" id="fayllar">1 · Fayl xəritəsi — hansı fayl nə üçündür?</p>
+  <div class="card">
+    <p>Yadda saxla: fayl adları <b>şərtidir</b> — Terraform qovluqdakı bütün <code>.tf</code> faylları birləşdirib oxuyur. Bölgü insan üçün səliqədir:</p>
+    <table>
+      <tr><th style="width:26%;">Fayl</th><th style="width:14%;">Kim yaradır</th><th>Nə üçündür</th></tr>
+      <tr><td><code>main.tf</code></td><td>Sən</td><td>Resurslar və modul çağırışları — işin əsas hissəsi</td></tr>
+      <tr><td><code>variables.tf</code></td><td>Sən</td><td>Dəyişənlərin <b>bəyanı</b> (adı, tipi, təsviri) — dəyərlər yox!</td></tr>
+      <tr><td><code>terraform.tfvars</code></td><td>Sən</td><td>Dəyişənlərin <b>dəyərləri</b> — bu mühit üçün konkret rəqəmlər/adlar</td></tr>
+      <tr><td><code>outputs.tf</code></td><td>Sən</td><td>Çıxış dəyərləri — "işin sonunda nəyi göstər/qaytar"</td></tr>
+      <tr><td><code>provider.tf</code></td><td>Sən</td><td>Provider konfiqurasiyası (region və s.) + versiya kilidi</td></tr>
+      <tr><td><code>.terraform/</code></td><td>Terraform (init)</td><td>Endirilmiş provider-lər və modullar — git-ə getmir</td></tr>
+      <tr><td><code>.terraform.lock.hcl</code></td><td>Terraform (init)</td><td>Provider versiyalarının dəqiq kilidi — git-ə <b>gedir</b></td></tr>
+      <tr><td><code>terraform.tfstate</code></td><td>Terraform (apply)</td><td>Yaddaş: kod ↔ real dünya xəritəsi — <b>əl ilə redaktə etmə, git-ə qoyma!</b></td></tr>
+    </table>
+  </div>
+
+  <p class="section-title" id="variable">2 · variable — dəyişənin anatomiyası</p>
+  <div class="card">
+    <p>Dəyişən = kodun <b>parametrləşdirilməsi</b>: dəyəri koddan çıxarırsan ki, eyni kod fərqli dəyərlərlə işləsin (Fəsil 2-dəki "bir kod — fərqli nəticələr").</p>
+<pre><code><span class="k">variable</span> <span class="s">"dev_cidr_block"</span> {
+  description = <span class="s">"CIDR for the development VPC"</span>  <span class="c"># insan üçün izah</span>
+  type        = string                              <span class="c"># hansı tip qəbul edilir</span>
+  default     = <span class="s">"10.0.0.0/16"</span>                     <span class="c"># dəyər verilməsə, bu işləyir</span>
+}</code></pre>
+    <div class="two">
+      <div>
+        <p><b>Sahələr:</b></p>
+        <ul>
+          <li><code>description</code> — həmişə yaz: 6 ay sonra özünə hədiyyə</li>
+          <li><code>type</code> — yazılmasa "any" olur; həmişə yaz</li>
+          <li><code>default</code> — <b>istəyə bağlıdır</b>: yoxdursa, dəyər verilməsi <b>məcburidir</b></li>
+        </ul>
+      </div>
+      <div>
+        <p><b>Bonus sahələr:</b></p>
+        <ul>
+          <li><code>sensitive = true</code> — dəyər plan çıxışında gizlədilir (parollar üçün)</li>
+          <li><code>validation { }</code> — dəyərə şərt qoyur (məsələn: port > 1024)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="warn">⚠️ Modul dərsindən qayda: <b>modul dəyişənlərinə default qoymuruq</b> — dəyəri çağıran verməlidir. Kök dəyişənlərdə isə default məqbuldur.</div>
+  </div>
+
+  <p class="section-title" id="deyer">3 · Dəyər vermə yolları və PRİORİTET</p>
+  <div class="card">
+    <p>Eyni dəyişənə bir neçə yerdən dəyər gələ bilər — güclü olan qalib gəlir (aşağıdan yuxarı güclənir):</p>
+<pre><code><span class="c"># 1 (ən zəif) — variables.tf-də default:</span>
+default = <span class="s">"10.0.0.0/16"</span>
+
+<span class="c"># 2 — mühit dəyişəni (TF_VAR_ prefiksi ilə):</span>
+$ export TF_VAR_dev_cidr_block=<span class="s">"10.1.0.0/16"</span>
+
+<span class="c"># 3 — terraform.tfvars faylı:</span>
+dev_cidr_block = <span class="s">"10.2.0.0/16"</span>
+
+<span class="c"># 4 (ən güclü) — CLI bayrağı:</span>
+$ terraform apply -var=<span class="s">"dev_cidr_block=10.3.0.0/16"</span></code></pre>
+    <p>Bu nümunədə VPC <b>10.3.0.0/16</b> ilə yaranacaq — CLI hamısını üstələyir. CLI olmasa → tfvars (10.2) → o da olmasa env var (10.1) → o da olmasa default (10.0).</p>
+    <div class="tip">✅ Praktik qayda: <b>gündəlik dəyərlər tfvars-da</b> yaşayır (fayldır, görünür, git-ə düşə bilər — secrets yoxdursa); <b>müvəqqəti sınaq</b> üçün <code>-var</code>; <b>secrets</b> üçün env var (<code>TF_VAR_...</code>) — fayla düşmür.</div>
+  </div>
+
+  <p class="section-title" id="output">4 · output — işin nəticəsini göstər / qaytar</p>
+  <div class="card">
+    <p>Output iki işə yarayır:</p>
+    <ol>
+      <li><b>İnsan üçün:</b> apply bitəndə vacib dəyərləri ekrana çıxarır — VPC ID, server IP-si… konsola girib axtarmağa ehtiyac qalmır</li>
+      <li><b>Kod üçün:</b> modulun "return" dəyəri — kənar kod modulun içinə yalnız output-la çata bilir (Fəsil 4.5)</li>
+    </ol>
+<pre><code><span class="k">output</span> <span class="s">"vpc_id"</span> {
+  description = <span class="s">"The ID of the production VPC"</span>
+  value       = aws_vpc.prd.id
+}</code></pre>
+<pre><code>$ terraform apply
+<span class="g">Outputs:
+vpc_id = "vpc-0be9c8f38606c4096"</span>
+
+$ terraform output              <span class="c"># istənilən vaxt yenidən bax</span>
+$ terraform output -json        <span class="c"># skriptlər üçün JSON formatında</span>
+$ terraform output vpc_id       <span class="c"># tək dəyər</span></code></pre>
+    <div class="tip">✅ Modul output-una müraciət: <code>module.vpc.vpc_id</code> — "vpc modulunun vpc_id output-u".</div>
+  </div>
+
+  <p class="section-title" id="locals">5 · locals — təkrarlanan ifadələr üçün</p>
+  <div class="card">
+    <p>Eyni ifadəni 5 yerdə yazırsansa — bir dəfə <code>locals</code>-da yaz, hər yerdə <code>local.</code> ilə istifadə et:</p>
+<pre><code><span class="k">locals</span> {
+  common_tags = {
+    ManagedBy = <span class="s">"terraform"</span>
+    Course    = <span class="s">"dpe-07"</span>
+  }
+  name_prefix = <span class="s">"prd"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_vpc" "prd"</span> {
+  cidr_block = <span class="s">"10.0.0.0/16"</span>
+  tags       = local.common_tags        <span class="c"># bir mənbə, hər yerdə eyni</span>
+}</code></pre>
+    <p><b>variable ilə fərqi nədir?</b> Variable — <b>kənardan gələn</b> dəyərdir (istifadəçi/tfvars verir); local — <b>daxili hesablanan</b> qısaltmadır, kənardan dəyişdirilə bilmir. Sual belə qoyulur: "bu dəyəri çağıran dəyişməlidir?" Bəli → variable; xeyr, sadəcə təkrarı azaldıram → local.</p>
+  </div>
+
+  <p class="section-title" id="tipler">6 · Tip sistemi — string-dən map-a</p>
+  <div class="card">
+    <table>
+      <tr><th style="width:18%;">Tip</th><th style="width:42%;">Nümunə dəyər</th><th>Nə vaxt lazımdır</th></tr>
+      <tr><td><code>string</code></td><td><code>"eu-north-1"</code></td><td>Mətn: adlar, region, CIDR</td></tr>
+      <tr><td><code>number</code></td><td><code>3</code></td><td>Rəqəm: say, port, ölçü</td></tr>
+      <tr><td><code>bool</code></td><td><code>true</code> / <code>false</code></td><td>Aç/bağla: enable_dns_hostnames</td></tr>
+      <tr><td><code>list(string)</code></td><td><code>["10.0.1.0/24", "10.0.2.0/24"]</code></td><td>Sıralı siyahı — index ilə: <code>var.cidrs[0]</code></td></tr>
+      <tr><td><code>map(string)</code></td><td><code>{ dev = "10.1.0.0/16", prd = "10.0.0.0/16" }</code></td><td>Açar-dəyər — açarla: <code>var.cidrs["dev"]</code></td></tr>
+      <tr><td><code>object({...})</code></td><td><code>{ name = "web", port = 80 }</code></td><td>Qarışıq tipli strukturlar (irəli mövzu)</td></tr>
+    </table>
+    <div class="warn">⚠️ Klassik başlanğıc xətası (özün gördün!): string dəyəri <b>dırnaqsız</b> yazmaq — <code>region = us-east-1</code> ✗. String həmişə dırnaqda: <code>region = "eu-north-1"</code> ✓. Rəqəm və bool isə dırnaqsızdır: <code>count = 3</code>, <code>enabled = true</code>.</div>
+  </div>
+
+  <p class="section-title" id="istinadlar">7 · İstinadlar — "bu dəyəri haradan götürüm?"</p>
+  <div class="card">
+    <p>Terraform kodunda hər istinadın öz prefiksi var — prefiks mənbəyi deyir:</p>
+    <table>
+      <tr><th style="width:36%;">Yazılış</th><th>Mənası</th></tr>
+      <tr><td><code>var.dev_cidr_block</code></td><td>Dəyişəndən (variables.tf-də bəyan edilib)</td></tr>
+      <tr><td><code>local.common_tags</code></td><td>Local dəyərdən</td></tr>
+      <tr><td><code>aws_vpc.prd.id</code></td><td>Resursdan: <b>tip.ad.atribut</b> — "prd adlı VPC-nin ID-si"</td></tr>
+      <tr><td><code>module.vpc.vpc_id</code></td><td>Modulun output-undan</td></tr>
+      <tr><td><code>data.aws_ami.ubuntu.id</code></td><td>Data source-dan (tapılmış mövcud resursdan)</td></tr>
+      <tr><td><code>"${var.env}-vpc"</code></td><td>İnterpolyasiya — string içində dəyər: nəticə <code>"dev-vpc"</code></td></tr>
+    </table>
+    <div class="tip">✅ Resursa istinad həm də <b>asılılıq</b> yaradır (implicit dependency): <code>vpc_id = aws_vpc.prd.id</code> yazdınsa, Terraform bilir ki, əvvəl VPC yaranmalıdır.</div>
+  </div>
+
+  <p class="section-title" id="data">8 · data vs resource — yaratmaq yoxsa tapmaq?</p>
+  <div class="card">
+    <div class="two">
+      <div>
+<pre><code><span class="k">resource</span> <span class="s">"aws_vpc" "prd"</span> {
+  cidr_block = <span class="s">"10.0.0.0/16"</span>
+}</code></pre>
+        <p style="text-align:center;"><b>resource = YARADIR ✚</b><br>Bu resursun həyatı Terraform-un əlindədir: yaradır, dəyişir, silir.</p>
+      </div>
+      <div>
+<pre><code><span class="k">data</span> <span class="s">"aws_ami" "ubuntu"</span> {
+  most_recent = true
+  owners      = [<span class="s">"099720109477"</span>]
+}</code></pre>
+        <p style="text-align:center;"><b>data = TAPIR 🔍</b><br>Mövcud olanı axtarıb oxuyur — yaratmır, silmir, yalnız məlumat götürür.</p>
+      </div>
+    </div>
+    <div class="tip">✅ "Server Təməlləri" sənədindən düstur: <b>cloud = çox resource · on-prem = əvvəl data ilə təməli tap (datastore, network, template), sonra resource ilə VM yarat.</b></div>
+  </div>
+
+  <p class="section-title" id="coxluq">9 · count və for_each — bir bloku çoxaltmaq (tanışlıq)</p>
+  <div class="card">
+    <p>Fəsil 4-də üç subnet üçün üç blok yazdıq. Əslində bir blok yazıb <b>çoxaltmaq</b> olar:</p>
+    <div class="two">
+      <div>
+<pre><code><span class="c"># count — say ilə</span>
+<span class="k">resource</span> <span class="s">"aws_subnet" "pub"</span> {
+  count      = 3
+  vpc_id     = aws_vpc.prd.id
+  cidr_block = <span class="s">"10.0.${count.index}.0/24"</span>
+}
+<span class="c"># yaradır: pub[0], pub[1], pub[2]</span></code></pre>
+      </div>
+      <div>
+<pre><code><span class="c"># for_each — açarlarla (tövsiyə olunan)</span>
+<span class="k">resource</span> <span class="s">"aws_subnet" "pub"</span> {
+  for_each   = { a = <span class="s">"10.0.0.0/24"</span>, b = <span class="s">"10.0.1.0/24"</span> }
+  vpc_id     = aws_vpc.prd.id
+  cidr_block = each.value
+}
+<span class="c"># yaradır: pub["a"], pub["b"]</span></code></pre>
+      </div>
+    </div>
+    <p><b>Fərq bir cümlədə:</b> <code>count</code> nömrə ilə işləyir — siyahının ortasından element silinəndə qalanların nömrəsi sürüşür və Terraform onları <b>yenidən yaratmaq</b> istəyir; <code>for_each</code> açarla işləyir — hər element öz açarında sabit qalır. Ona görə praktikada for_each üstündür.</p>
+    <div class="ai">🤖 Bu mövzu kursun yekun mini-layihəsində qarşına çıxacaq (data-lake bucket-ləri for_each ilə) — burada tanışlıq kifayətdir.</div>
+  </div>
+
+  <p class="section-title" id="emrler">10 · Əmrlər — cib vərəqəsi</p>
+  <div class="card">
+    <table>
+      <tr><th style="width:34%;">Əmr</th><th>Nə edir</th></tr>
+      <tr><td><code>terraform init</code></td><td>Provider/modul endirir, qovluğu hazırlayır — yeni provider və ya modul = yenidən init</td></tr>
+      <tr><td><code>terraform fmt</code></td><td>Kodu avtomatik formatlayır (boşluqlar, düzləndirmə)</td></tr>
+      <tr><td><code>terraform validate</code></td><td>Sintaksis + istinadları yoxlayır — hallüsinasiya tutucu</td></tr>
+      <tr><td><code>terraform plan</code></td><td>Önizləmə: + yaradılacaq · ~ dəyişəcək · - silinəcək. Heç nəyi dəyişmir</td></tr>
+      <tr><td><code>terraform apply</code></td><td>Dəyişiklikləri həqiqətən tətbiq edir (təsdiq istəyir)</td></tr>
+      <tr><td><code>terraform destroy</code></td><td>State-dəki hər şeyi silir — dərs sonu ritualı 🧹</td></tr>
+      <tr><td><code>terraform state list</code></td><td>State-dəki resursların siyahısı — "Terraform nəyi tanıyır?"</td></tr>
+      <tr><td><code>terraform output</code></td><td>Output dəyərlərini göstərir</td></tr>
+      <tr><td><code>terraform console</code></td><td>İnteraktiv sınaq meydanı: ifadələri (var.x, funksiyalar) canlı yoxla</td></tr>
+    </table>
+    <div class="tip">✅ Kursun ritmi: <code>fmt → validate → plan → (oxu!) → apply</code> — hər dəfə, həmişə, Copilot yazanda xüsusilə.</div>
+  </div>
+
+  <p class="section-title" id="gitignore">11 · .gitignore — git-ə nə GETMİR?</p>
+  <div class="card">
+<pre><code><span class="c"># Terraform layihəsinin standart .gitignore-u:</span>
+.terraform/          <span class="c"># endirilmiş provider-lər — ağırdır, init yenidən endirir</span>
+*.tfstate            <span class="c"># state — içində həssas məlumat ola bilər!</span>
+*.tfstate.*          <span class="c"># state backup-ları — eyni səbəb</span>
+*.tfvars             <span class="c"># içində secrets varsa; yoxdursa saxlamaq olar</span>
+crash.log</code></pre>
+    <ul>
+      <li>Git-ə <b>gedir:</b> bütün <code>.tf</code> fayllar + <code>.terraform.lock.hcl</code> (versiya kilidi komanda üçün vacibdir)</li>
+      <li>Git-ə <b>getmir:</b> state (həssas!), <code>.terraform/</code> qovluğu, secrets olan tfvars</li>
+    </ul>
+    <div class="ai">🤖 Fəsil 6-da bu faylı <b>Copilot-a yazdıracağıq</b> — amma nəyin niyə girmədiyini indi bilirsən, orada yalnız sürət qazanacaqsan.</div>
+  </div>
+
+  <div class="tip" style="margin-top:20px;">
+    ✅ <b>Bu sənədi necə istifadə et:</b> lab zamanı yadından çıxan konstruksiya olanda bura qayıt — hər bölmə müstəqildir.
+    Dərinləşmək istəyəndə rəsmi mənbə həmişə birdir: <a href="https://developer.hashicorp.com/terraform/language" target="_blank">developer.hashicorp.com/terraform/language</a>.
+  </div>
+
+</main>
+
+<footer>
+  Data Platform &amp; Engineering Bootcamp · DPE-07 · Bonus material ·
+  <a href="server-temelleri-aws-vcenter.html">← Server Təməlləri</a> · <a href="../index.html">Ana səhifə</a>
+</footer>
+
+</body>
+</html>

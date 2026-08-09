@@ -1,0 +1,19 @@
+# ── Şəxsi/sınaq işləri (AWS account ID və state ehtiva edir) ──
+demo-1/
+
+# ── Kursun müəllifinin klonlanmış repo-su (ayrı git repo-dur) ──
+terraform/
+
+# ── Müəllif hüquqlu material ──
+*.pdf
+
+# ── Terraform artefaktları ──
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+crash.log
+
+# ── Sistem/redaktor ──
+.DS_Store
+.claude/

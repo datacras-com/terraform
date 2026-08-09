@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bonus: Server Qurmazdan Əvvəl Nə Lazımdır? · AWS vs vCenter · DPE-07</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #F7F9F8; color: #0F172A; min-height: 100vh; line-height: 1.6; }
+    header { background: #0F172A; padding: 28px 48px 24px; border-bottom: 3px solid #00A859; }
+    header h1 { color: #00A859; font-size: 1.45rem; font-weight: 700; letter-spacing: -0.3px; }
+    header p { color: #848688; font-size: 0.82rem; margin-top: 5px; }
+    .badge { display: inline-block; background: #9333EA; color: white; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+    main { max-width: 900px; margin: 36px auto; padding: 0 24px; }
+    .intro { background: white; border: 1px solid #E2E8F0; border-left: 4px solid #9333EA; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 28px; font-size: 0.875rem; color: #334155; }
+    .section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #848688; margin: 32px 0 14px; }
+    h2 { font-size: 1.05rem; color: #0F172A; margin: 0 0 10px; }
+    .card { background: white; border: 1px solid #E2E8F0; border-radius: 10px; padding: 18px 22px; margin-bottom: 16px; }
+    table { font-size: 0.84rem; border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th { background: #0F172A; color: #A7F3D0; padding: 8px 12px; text-align: left; font-weight: 700; }
+    td { border: 1px solid #E2E8F0; padding: 8px 12px; background: white; vertical-align: top; }
+    tr:nth-child(even) td { background: #F8FAFC; }
+    td.layer { font-weight: 700; color: #0F172A; white-space: nowrap; }
+    code { background: #E8F5EE; color: #00703A; padding: 2px 6px; border-radius: 4px; font-size: 0.82em; border: 1px solid #C3E4D0; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    .aws { color: #B45309; font-weight: 700; }
+    .vc { color: #1D4ED8; font-weight: 700; }
+    .tip { background: #F0FAF4; border: 1px solid #C3E4D0; border-left: 4px solid #00A859; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 0.84rem; }
+    .warn { background: #FFF8E1; border: 1px solid #FDE68A; border-left: 4px solid #F59E0B; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 0.84rem; color: #78350F; }
+    .ai { background: #F3E8FF; border: 1px solid #D8B4FE; border-left: 4px solid #9333EA; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 0.84rem; color: #581C87; }
+    .two-col { display: flex; gap: 16px; align-items: stretch; }
+    .two-col > div { flex: 1; border-radius: 10px; padding: 16px 18px; }
+    .col-aws { background: #FFF8E1; border: 1.5px solid #FDE68A; border-top: 4px solid #F59E0B; }
+    .col-vc { background: #EFF6FF; border: 1.5px solid #BFDBFE; border-top: 4px solid #3B82F6; }
+    .two-col h3 { font-size: 0.92rem; margin-bottom: 10px; }
+    .checklist { list-style: none; padding: 0; }
+    .checklist li { padding: 7px 10px; background: rgba(255,255,255,0.75); border: 1px solid #E2E8F0; border-radius: 6px; margin-bottom: 6px; font-size: 0.82rem; }
+    .checklist li::before { content: "☐ "; font-weight: 700; }
+    .col-aws .checklist li::before { color: #B45309; }
+    .col-vc .checklist li::before { color: #1D4ED8; }
+    .done::before { content: "✅ " !important; }
+    .flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+    .flow span.step { background: white; border: 1.5px solid #CBD5E1; border-radius: 8px; padding: 5px 12px; font-size: 0.78rem; font-weight: 600; color: #334155; }
+    .flow span.arr { color: #848688; }
+    footer { text-align: center; padding: 24px; color: #848688; font-size: 0.75rem; border-top: 1px solid #E2E8F0; margin-top: 30px; }
+    a { color: #00A859; font-weight: 600; }
+    @media (max-width: 720px) { .two-col { flex-direction: column; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Server Qurmazdan Əvvəl Nə Lazımdır? <span class="badge">BONUS</span></h1>
+  <p>Terraform + Copilot Modulu · DPE-07 · AWS və vCenter-də serverin təməl qatları — Terraform-dan əvvəlki dünya</p>
+</header>
+
+<main>
+
+  <div class="intro">
+    Bir virtual server (VM) heç vaxt boşluqda yaranmır — onun altında <b>təməl qatlar</b> olmalıdır:
+    işləyəcəyi yer (compute), qoşulacağı şəbəkə, diskinin yaşayacağı storage, üzərinə qurulacağı image
+    və bütün bunlara toxunmaq üçün giriş icazələri.
+    <br><br>
+    Analogiya: <b>ev tikintisi</b> — ev (server) tikilməzdən əvvəl torpaq sahəsi (compute), yol və kommunikasiyalar
+    (şəbəkə), su-elektrik xətləri (storage), tikinti layihəsi (image) və tikinti icazəsi (credentials) lazımdır.
+    Bu sənəd iki dünyanı yan-yana qoyur: <span class="aws">☁️ AWS</span> və <span class="vc">🏢 vCenter (on-prem VMware)</span> —
+    və əsas suala cavab verir: <b>Terraform-a başlamazdan əvvəl nəyi hazırlamalıyıq?</b>
+  </div>
+
+  <p class="section-title">1 · Serverin beş təməl qatı — iki dünyada adları</p>
+
+  <div class="card">
+    <table>
+      <tr>
+        <th style="width:20%;">Qat</th>
+        <th style="width:40%;">☁️ AWS-də</th>
+        <th style="width:40%;">🏢 vCenter-də</th>
+      </tr>
+      <tr>
+        <td class="layer">⚙️ Compute<br><span style="font-weight:400; font-size:0.8em; color:#848688;">"harada işləyəcək?"</span></td>
+        <td>Fiziki qat <b>görünməzdir</b> — sadəcə instance tipi seçirsən (<code>t3.micro</code>: 2 vCPU, 1 GB RAM). Serverlər Amazon-undur.</td>
+        <td><b>ESXi host</b> (fiziki server + hypervisor) → <b>Cluster</b> (host qrupu) → <b>Resource Pool</b> (CPU/RAM bölgüsü). Dəmiri sən idarə edirsən.</td>
+      </tr>
+      <tr>
+        <td class="layer">🌐 Şəbəkə<br><span style="font-weight:400; font-size:0.8em; color:#848688;">"necə danışacaq?"</span></td>
+        <td><b>VPC</b> → <b>Subnet</b> (AZ-də) → <b>Security Group</b> (firewall) → <b>IGW / Route Table</b> (internetə yol). Fəsil 4-də qurduqlarımız!</td>
+        <td><b>vSwitch / Distributed Switch</b> (virtual kommutator) → <b>Port Group</b> (VM-in qoşulduğu "port") → <b>VLAN</b> (şəbəkə seqmenti). Fiziki switch-lərlə uzlaşmalıdır.</td>
+      </tr>
+      <tr>
+        <td class="layer">💾 Storage<br><span style="font-weight:400; font-size:0.8em; color:#848688;">"diski harada yaşayacaq?"</span></td>
+        <td><b>EBS volume</b> — instance-a qoşulan virtual disk. Növü seçirsən (gp3, io2), arxasındakı avadanlıq Amazon-un işidir.</td>
+        <td><b>Datastore</b> — host(lar)ın gördüyü disk sahəsi: lokal disk, SAN/iSCSI, NFS və ya vSAN. VM-in diski orada <b>VMDK</b> faylı kimi yaşayır.</td>
+      </tr>
+      <tr>
+        <td class="layer">📀 Image<br><span style="font-weight:400; font-size:0.8em; color:#848688;">"OS haradan gələcək?"</span></td>
+        <td><b>AMI</b> (Amazon Machine Image) — hazır OS şablonları marketplace-də var: Ubuntu, Amazon Linux… Seç və işə sal.</td>
+        <td><b>VM Template</b> — özün hazırlamalısan: bir VM qur, OS + VMware Tools quraşdır, template-ə çevir. Terraform template <b>yaratmır</b>, ondan clone edir.</td>
+      </tr>
+      <tr>
+        <td class="layer">🔑 Giriş<br><span style="font-weight:400; font-size:0.8em; color:#848688;">"kim yaratmağa icazəlidir?"</span></td>
+        <td><b>IAM user/role</b> + <b>access key</b> (Terraform üçün) və <b>key pair</b> (hazır serverə SSH üçün).</td>
+        <td><b>vCenter istifadəçisi</b> + rol/icazələr (Terraform üçün) və template-in daxilindəki <b>guest OS hesabı</b> (hazır VM-ə giriş üçün).</td>
+      </tr>
+      <tr>
+        <td class="layer">🔢 IP ünvanı<br><span style="font-weight:400; font-size:0.8em; color:#848688;">"ünvanı kim verəcək?"</span></td>
+        <td>Private IP — subnetdən <b>avtomatik</b>. Kənardan giriş lazımdırsa: <b>Public IP / Elastic IP</b>.</td>
+        <td><b>DHCP</b> (şəbəkədə varsa) və ya <b>static IP</b> — clone zamanı customization ilə verilir. DHCP yoxdursa, IP planlaması sənin üzərinə düşür.</td>
+      </tr>
+    </table>
+  </div>
+
+  <p class="section-title">2 · Əsas sual: Terraform-dan ƏVVƏL nə hazır olmalıdır?</p>
+
+  <div class="two-col">
+    <div class="col-aws">
+      <h3>☁️ AWS — siyahı qısadır</h3>
+      <ul class="checklist">
+        <li>AWS account (+ billing məlumatı)</li>
+        <li>Budget alert (zero-spend) — xərc siqnalizasiyası</li>
+        <li>IAM user + access key-lər (Terraform-un girişi)</li>
+        <li>Region qərarı (bizdə: <code>eu-north-1</code>)</li>
+      </ul>
+      <div class="tip" style="margin-bottom:0;">✅ <b>Vəssalam.</b> Qalan hər şeyi — VPC, subnet, storage, server — Terraform <b>özü yarada bilir</b>, image-lər (AMI) hazır gəlir. Cloud-un mahiyyəti budur: təməl qatlar API arxasında hazırdır.</div>
+    </div>
+
+    <div class="col-vc">
+      <h3>🏢 vCenter — təməli özün tikirsən</h3>
+      <ul class="checklist">
+        <li>Fiziki server(lər) + <b>ESXi</b> quraşdırılmış</li>
+        <li><b>vCenter</b> deploy edilmiş (VCSA appliance)</li>
+        <li>vCenter-də <b>Datacenter + Cluster</b> yaradılmış, host əlavə edilmiş</li>
+        <li><b>Datastore</b> qoşulmuş (lokal/SAN/NFS/vSAN)</li>
+        <li>Şəbəkə: <b>vSwitch + Port Group + VLAN-lar</b> (fiziki switch-lərlə uzlaşmış)</li>
+        <li><b>VM Template</b> hazırlanmış (OS + VMware Tools)</li>
+        <li>DHCP və ya <b>IP planı</b></li>
+        <li>Terraform üçün <b>vCenter istifadəçisi + icazələr</b></li>
+      </ul>
+      <div class="warn" style="margin-bottom:0;">⚠️ Bunların heç birini Terraform yaratmır — bunlar <b>infrastrukturun fiziki/platforma qatıdır</b>. Terraform yalnız hazır təməlin <b>üstündə</b> VM-ləri idarə edir.</div>
+    </div>
+  </div>
+
+  <p class="section-title">3 · Bəs Terraform bu hazır şeyləri necə görür? — data source</p>
+
+  <div class="card">
+    <p style="font-size:0.86rem;">Fəsil 2-dən xatırla: Terraform-un iki əsas bloku var — <b>resource</b> (yaradır) və <b>data source</b> (mövcudu <b>tapır</b>). vCenter dünyasında data source əsas işçidir: əvvəlcədən qurulmuş datastore-u, şəbəkəni, template-i <b>axtarıb tapırıq</b>, sonra VM resursu onların üstündə yaranır:</p>
+    <div class="flow">
+      <span class="step">data: datacenter 🔍</span><span class="arr">→</span>
+      <span class="step">data: datastore 🔍</span><span class="arr">→</span>
+      <span class="step">data: network (port group) 🔍</span><span class="arr">→</span>
+      <span class="step">data: template 🔍</span><span class="arr">→</span>
+      <span class="step" style="border-color:#00A859; color:#00703A; font-weight:700;">resource: virtual_machine ✚</span>
+    </div>
+    <p style="font-size:0.86rem;">AWS-də isə əksinə — demək olar hər şey <b>resource</b>-dur, çünki hər şeyi Terraform özü yarada bilir. Data source AWS-də də var (məsələn, hazır AMI-ni tapmaq üçün), amma çəkisi azdır.</p>
+    <div class="tip">✅ Yadda saxlama düsturu: <b>cloud = çox resource, az data source · on-prem = əvvəl data source-larla təməli tap, sonra resource ilə VM yarat.</b></div>
+  </div>
+
+  <p class="section-title">4 · İki dünya, bir alət — mənzərə</p>
+
+  <div class="card">
+    <table>
+      <tr><th></th><th>☁️ AWS</th><th>🏢 vCenter</th></tr>
+      <tr><td class="layer">Təməl qatları kim qurur?</td><td>Amazon (sənə API verir)</td><td>Sən / infrastruktur komandası</td></tr>
+      <tr><td class="layer">Terraform-a qədər əl işi</td><td>~30 dəqiqə (account + IAM)</td><td>Günlər (dəmir → ESXi → vCenter → şəbəkə → storage → template)</td></tr>
+      <tr><td class="layer">Terraform nəyi idarə edir?</td><td>Demək olar hər şeyi — şəbəkədən serverə</td><td>Virtual qatı: VM, resource pool, port group... fiziki qatı yox</td></tr>
+      <tr><td class="layer">Image mənbəyi</td><td>Hazır AMI kataloqu</td><td>Özün hazırladığın template</td></tr>
+      <tr><td class="layer">Xərc modeli</td><td>İstifadəyə görə (saatlıq) — destroy = xərc dayanır</td><td>Avadanlıq öncədən alınıb — VM silmək pul qaytarmır, resurs boşaldır</td></tr>
+    </table>
+    <div class="ai">🤖 Template hazırlamaq da avtomatlaşdırıla bilir — HashiCorp-un <b>Packer</b> aləti bunun üçündür: kod ilə image/template istehsal edir. Zəncir belə qurulur: <b>Packer</b> (image hazırlayır) → <b>Terraform</b> (infrastrukturu yaradır) → <b>Ansible</b> (içini konfiqurasiya edir). Kursdan sonrakı istiqamətlərdən biri.</div>
+  </div>
+
+  <p class="section-title">5 · Yekun checklist — "terraform init-dən əvvəl"</p>
+
+  <div class="two-col">
+    <div class="col-aws">
+      <h3>☁️ AWS layihəsinə başlayırsan:</h3>
+      <ul class="checklist">
+        <li>Account var, budget alert qurulub?</li>
+        <li>IAM açarları var və <code>aws sts get-caller-identity</code> <b>düzgün account</b> göstərir?</li>
+        <li>Region seçilib və hər yerdə eynidir (provider + AZ-lər)?</li>
+        <li>Nə quracağını bilirsən? (memarlıq şəkli — Fəsil 4 qaydası)</li>
+      </ul>
+    </div>
+    <div class="col-vc">
+      <h3>🏢 vCenter layihəsinə başlayırsan:</h3>
+      <ul class="checklist">
+        <li>vCenter ünvanı + Terraform istifadəçisi əlindədir?</li>
+        <li>Hansı datacenter / cluster / datastore? (adlarını dəqiq bil — data source-lar adla axtarır!)</li>
+        <li>Hansı port group / VLAN? IP-ni kim verir — DHCP, yoxsa static plan?</li>
+        <li>Template hazırdır və adını bilirsən?</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="tip" style="margin-top:16px;">
+    ✅ <b>Bir cümləlik yekun:</b> AWS-də Terraform-dan əvvəl yalnız <b>hesab və açarlar</b> lazımdır — təməli bulud verir;
+    vCenter-də isə <b>təməlin özü</b> (host, storage, şəbəkə, template) əvvəlcədən qurulmalıdır — Terraform o təməl üzərində
+    virtual qatı idarə edir. Hər iki halda iş axını eynidir: <code>init → plan → apply → destroy</code>.
+  </div>
+
+</main>
+
+<footer>
+  Data Platform &amp; Engineering Bootcamp · DPE-07 · Bonus material · <a href="../index.html">← Ana səhifə</a>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bonus: Modullar — Sadə Dildə · DPE-07</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #F7F9F8; color: #0F172A; min-height: 100vh; line-height: 1.65; }
+    header { background: #0F172A; padding: 28px 48px 24px; border-bottom: 3px solid #00A859; }
+    header h1 { color: #00A859; font-size: 1.45rem; font-weight: 700; letter-spacing: -0.3px; }
+    header p { color: #848688; font-size: 0.82rem; margin-top: 5px; }
+    .badge { display: inline-block; background: #9333EA; color: white; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+    main { max-width: 860px; margin: 36px auto; padding: 0 24px; }
+    .intro { background: white; border: 1px solid #E2E8F0; border-left: 4px solid #9333EA; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 28px; font-size: 0.9rem; color: #334155; }
+    .section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #848688; margin: 32px 0 14px; }
+    .card { background: white; border: 1px solid #E2E8F0; border-radius: 10px; padding: 18px 22px; margin-bottom: 16px; }
+    .card h2 { font-size: 1rem; color: #00703A; margin-bottom: 8px; }
+    .card p, .card li { font-size: 0.88rem; color: #334155; }
+    .card ul, .card ol { padding-left: 22px; margin: 8px 0; }
+    .card li { margin-bottom: 6px; }
+    table { font-size: 0.83rem; border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th { background: #0F172A; color: #A7F3D0; padding: 7px 12px; text-align: left; font-weight: 700; }
+    td { border: 1px solid #E2E8F0; padding: 7px 12px; background: white; vertical-align: top; }
+    tr:nth-child(even) td { background: #F8FAFC; }
+    code { background: #E8F5EE; color: #00703A; padding: 2px 6px; border-radius: 4px; font-size: 0.82em; border: 1px solid #C3E4D0; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    pre { background: #1E293B; color: #E2E8F0; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #00A859; font-size: 0.78rem; line-height: 1.55; margin: 10px 0; overflow-x: auto; color-scheme: dark; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    pre code { background: transparent; color: #E2E8F0; border: none; padding: 0; font-size: 1em; }
+    pre .c { color: #64748B; }
+    pre .k { color: #C084FC; }
+    pre .s { color: #FBBF24; }
+    .tip { background: #F0FAF4; border: 1px solid #C3E4D0; border-left: 4px solid #00A859; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 0.85rem; }
+    .warn { background: #FFF8E1; border: 1px solid #FDE68A; border-left: 4px solid #F59E0B; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 0.85rem; color: #78350F; }
+    .ai { background: #F3E8FF; border: 1px solid #D8B4FE; border-left: 4px solid #9333EA; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 0.85rem; color: #581C87; }
+    .flow { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+    .flow .box { flex: 1; min-width: 150px; border-radius: 10px; padding: 10px 12px; text-align: center; }
+    .flow .arr { display: flex; align-items: center; color: #848688; font-size: 1.1rem; }
+    .b-blue { background: #EFF6FF; border: 1.5px solid #BFDBFE; }
+    .b-green { background: #F0FAF4; border: 1.5px solid #C3E4D0; }
+    .b-purple { background: #F3E8FF; border: 1.5px solid #D8B4FE; }
+    .flow .box b { display: block; font-size: 0.82rem; margin-bottom: 4px; }
+    .flow .box span { font-size: 0.74rem; color: #475569; }
+    .two { display: flex; gap: 14px; }
+    .two > div { flex: 1; min-width: 0; }
+    footer { text-align: center; padding: 24px; color: #848688; font-size: 0.75rem; border-top: 1px solid #E2E8F0; margin-top: 30px; }
+    a { color: #00A859; font-weight: 600; }
+    @media (max-width: 720px) { .two { flex-direction: column; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Modullar — Sadə Dildə <span class="badge">BONUS</span></h1>
+  <p>Terraform + Copilot Modulu · DPE-07 · Modul nədir, necə işləyir və Copilot bunu necə asanlaşdırır</p>
+</header>
+
+<main>
+
+  <div class="intro">
+    <b>Bir cümlə ilə:</b> modul — bir dəfə yazıb, dönə-dönə istifadə etdiyin <b>hazır kod paketidir</b>.
+    Necə ki, tort reseptini bir dəfə yazırsan və hər dəfə fərqli ölçüdə tort bişirirsən —
+    modulu da bir dəfə yazırsan və hər dəfə fərqli parametrlərlə infrastruktur "bişirirsən".
+  </div>
+
+  <p class="section-title">1 · Problem: kopyala-yapışdır kod</p>
+  <div class="card">
+    <p>Kursda iki VPC yazdıq — kodları demək olar <b>eyni</b> idi, yalnız CIDR və ad fərqlənirdi:</p>
+    <div class="two">
+      <div>
+<pre><code><span class="k">resource</span> <span class="s">"aws_vpc" "prd"</span> {
+  cidr_block = <span class="s">"10.0.0.0/16"</span>
+  tags = { Name = <span class="s">"prd"</span> }
+}</code></pre>
+      </div>
+      <div>
+<pre><code><span class="k">resource</span> <span class="s">"aws_vpc" "dev"</span> {
+  cidr_block = <span class="s">"10.1.0.0/16"</span>
+  tags = { Name = <span class="s">"dev"</span> }
+}</code></pre>
+      </div>
+    </div>
+    <p>İki dənə hələ dözüləndir. Bəs 10 mühit olsa? Bəs hər VPC-yə 5 yeni parametr əlavə etmək lazım gəlsə —
+    <b>10 yerdə</b> eyni düzəlişi edəcəksən? Bir yerdə unutsan — mühitlər bir-birindən fərqlənməyə başlayır və heç kim bilmir niyə.</p>
+    <div class="tip">✅ Həll: təkrarlanan hissəni <b>bir yerə</b> yığ (modul), fərqlənən hissəni <b>parametr</b> et (dəyişənlər). Düzəliş lazım olanda — bir yerdə düzəldirsən, hamı faydalanır.</div>
+  </div>
+
+  <p class="section-title">2 · Modul üç hissədən ibarətdir — restoran analogiyası</p>
+  <div class="card">
+    <div class="flow">
+      <div class="box b-blue"><b>📥 variables.tf</b><span>Sifariş pəncərəsi —<br>"nə istəyirsən?"<br>(CIDR? ad?)</span></div>
+      <div class="arr">→</div>
+      <div class="box b-green"><b>⚙️ main.tf</b><span>Mətbəx —<br>sifarişə uyğun<br>resursu hazırlayır</span></div>
+      <div class="arr">→</div>
+      <div class="box b-purple"><b>📤 outputs.tf</b><span>Təhvil pəncərəsi —<br>hazır məhsulun<br>"qəbzini" qaytarır (ID)</span></div>
+    </div>
+    <p>Qovluqda belə görünür:</p>
+<pre><code>modules/vpc/
+├── variables.tf   <span class="c"># nə QƏBUL edir: vpc_cidr_block, vpc_name</span>
+├── main.tf        <span class="c"># nə YARADIR: aws_vpc resursu</span>
+└── outputs.tf     <span class="c"># nə QAYTARIR: vpc_id</span></code></pre>
+    <div class="warn">⚠️ Vacib qayda: mətbəxə kənardan girmək olmaz! Modulun içindəki resursa çölden birbaşa müraciət <b>mümkün deyil</b> —
+    yalnız təhvil pəncərəsindən (output) ala bilərsən: <code>module.vpc.vpc_id</code>.</div>
+  </div>
+
+  <p class="section-title">3 · Modulu çağırmaq = sifariş vermək</p>
+  <div class="card">
+<pre><code><span class="k">module</span> <span class="s">"vpc"</span> {
+  source = <span class="s">"./modules/vpc"</span>       <span class="c"># restoranın ünvanı (qovluq yolu)</span>
+
+  vpc_cidr_block = <span class="s">"10.2.0.0/16"</span>  <span class="c"># sifarişin — "bu CIDR ilə"</span>
+  vpc_name       = <span class="s">"dev-vpc"</span>      <span class="c"># sifarişin — "bu adla"</span>
+}
+
+<span class="c"># Qəbzi istifadə etmək:</span>
+<span class="k">resource</span> <span class="s">"aws_security_group" "sg"</span> {
+  vpc_id = module.vpc.vpc_id       <span class="c"># "vpc modulunun qaytardığı ID"</span>
+}</code></pre>
+    <p>Adi dildə: <em>"Ey vpc modulu! Sənə CIDR <b>10.2.0.0/16</b> və ad <b>dev-vpc</b> verirəm —
+    mənə bir VPC yarat və ID-sini qaytar."</em> Sabah eyni cümləni prd dəyərləri ilə deyirsən — <b>ikinci VPC hazır</b>, kod yazmadan.</p>
+    <div class="tip">✅ Üç qızıl qayda:
+      <b>(1)</b> modulun dəyişən adları <b>ümumi</b> olsun (<code>vpc_cidr_block</code>, <code>dev_cidr_block</code> yox) — modul mühit adı bilməməlidir;
+      <b>(2)</b> modul dəyişənlərinə <b>default qoyma</b> — dəyəri çağıran versin;
+      <b>(3)</b> yeni modul əlavə etdin = <b>terraform init</b> unutma.</div>
+  </div>
+
+  <p class="section-title">4 · Copilot bunu necə asanlaşdırır? — addım-addım</p>
+  <div class="card">
+    <table>
+      <tr><th style="width:26%;">Addım</th><th style="width:44%;">Copilot nə edir</th><th>Sənin işin</th></tr>
+      <tr>
+        <td><b>Skelet qurmaq</b></td>
+        <td>Agent rejimində bir prompt — qovluq + 3 fayl hazır:<br><code>Create a modules/vpc folder with main.tf, variables.tf and outputs.tf for a reusable VPC module</code></td>
+        <td>Hesabata bax → <b>Keep</b></td>
+      </tr>
+      <tr>
+        <td><b>main.tf yazmaq</b></td>
+        <td><code>resource "aws_vpc</code> yazan kimi bloku təklif edir; <code>var.</code> yazanda dəyişənə yönəlir; DNS parametrlərini, tags-ı özü əlavə edir</td>
+        <td>Yanlış resurs təklif etsə (məs. route table) — yazmağa davam et, təklif düzələcək</td>
+      </tr>
+      <tr>
+        <td><b>variables.tf</b></td>
+        <td><code>variable "</code> yazanda main.tf-ə baxıb lazım olan dəyişənləri <b>özü tapır</b> — description və type ilə birlikdə</td>
+        <td>⚠️ Ad yoxla! Copilot <code>vpc_cidr</code> deyə bilər, səndə <code>vpc_cidr_block</code>-dur. Default təklif etsə — <b>sil</b></td>
+      </tr>
+      <tr>
+        <td><b>outputs.tf</b></td>
+        <td>Boş faylda susa bilər — <code>vpc_id</code> yazmağa başlayan kimi tam bloku gətirir</td>
+        <td>Təklif gəlmirsə yazmağa davam et — kontekst yığıldıqca oyanır</td>
+      </tr>
+      <tr>
+        <td><b>Modulu çağırmaq</b></td>
+        <td><code>module</code> yazan kimi qovluğu tanıyıb <b>bütün çağırışı</b> təklif edir — source yolu ilə birlikdə</td>
+        <td>Ötürdüyün dəyişən adlarını öz variables.tf-inlə tutuşdur</td>
+      </tr>
+      <tr>
+        <td><b>Başa düşmək</b></td>
+        <td>Hazır (özgə) modulu seç → <b>⌘I → /explain</b> — nə qəbul edir, nə qaytarır, sözlə izah edir</td>
+        <td>Oxu — sənədə keçmədən modulu tanıyırsan</td>
+      </tr>
+      <tr>
+        <td><b>Sənədləşdirmək</b></td>
+        <td>Agent promptu: <code>Add a # Resource / # Description comment above each block. Do not change any code.</code></td>
+        <td>Şərhlər kodla düz gəlir? → <b>Keep</b></td>
+      </tr>
+    </table>
+    <div class="ai">🤖 Ən maraqlısı: modulu qurub tfvars-a dəyərləri yazandan sonra Copilot <b>özündən prd_cidr_block təklif etməyə başlayır</b> —
+    kodda iki VPC olduğunu görüb, prd-nin də modula keçəcəyini qabaqcadan güman edir. Kontekst zəkası buna deyirlər.
+    Amma qərar sənindir: hazır deyilsənsə — Esc.</div>
+  </div>
+
+  <p class="section-title">5 · Copilot ilə işləyəndə 3 tələ</p>
+  <div class="card">
+    <ol>
+      <li><b>Ad uydurma:</b> Copilot dəyişən adlarını "təxmin edir" — sənin yazdığınla hərfbəhərf düz gəlməyə bilər
+        (kursda iki dəfə başımıza gəldi: <code>vpc_cidr</code> və <code>dev_vpc_cidr_block</code>).
+        Ad tutmasa, <code>terraform plan</code> dərhal "undeclared variable/resource" deyəcək — xətanı oxu, adı düzəlt.</li>
+      <li><b>Artıq səxavət:</b> Copilot modul dəyişəninə <code>default</code>, lazımsız parametrlər, hətta artıq output təklif edə bilər —
+        hamısını götürmə. Modul nə qədər sadə, o qədər yaxşı.</li>
+      <li><b>Köhnə istinadlar:</b> resursu modula çevirəndə köhnə istinadlar (<code>aws_vpc.dev.id</code>) qalır və plan xəta verir.
+        Həll: <code>module.vpc.vpc_id</code>-yə dəyiş — və ya xətalı sətri seçib <b>⌘I → /fix</b>.</li>
+    </ol>
+    <div class="tip">✅ Dəyişməz qayda burada da işləyir: <b>Copilot sürətləndirir, sən yoxlayırsan</b> —
+    modulda yoxlama üçlüyü: adlar üst-üstə düşür? → <code>terraform init</code> → <code>terraform validate</code>.</div>
+  </div>
+
+  <p class="section-title">6 · Üç cümlədə yadda saxla</p>
+  <div class="card">
+    <ol style="font-size:0.92rem; font-weight:600;">
+      <li>Modul = <b>resept</b>: bir dəfə yaz, fərqli parametrlərlə dönə-dönə istifadə et.</li>
+      <li>Üç qapısı var: <b>variables</b> (qəbul edir) → <b>main</b> (yaradır) → <b>outputs</b> (qaytarır) — içəriyə yalnız bu qapılardan girilir.</li>
+      <li>Copilot skeleti və blokları <b>saniyələrdə</b> yazır — sənin işin adları tutuşdurmaq, artığı silmək və <code>init + validate</code> etməkdir.</li>
+    </ol>
+  </div>
+
+</main>
+
+<footer>
+  Data Platform &amp; Engineering Bootcamp · DPE-07 · Bonus material ·
+  <a href="terraform-dili-soraq.html">← Soraq Kitabçası</a> · <a href="../index.html">Ana səhifə</a>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bonus: AWS Konsolunda Nə Görürəm? · DPE-07</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #F7F9F8; color: #0F172A; min-height: 100vh; line-height: 1.6; }
+    header { background: #0F172A; padding: 28px 48px 24px; border-bottom: 3px solid #00A859; }
+    header h1 { color: #00A859; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.3px; }
+    header p { color: #848688; font-size: 0.82rem; margin-top: 5px; }
+    .badge { display: inline-block; background: #9333EA; color: white; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+    main { max-width: 820px; margin: 36px auto; padding: 0 24px; }
+    .intro { background: white; border: 1px solid #E2E8F0; border-left: 4px solid #9333EA; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 30px; font-size: 0.875rem; color: #334155; }
+    .section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #848688; margin: 30px 0 14px; }
+    .qa { background: white; border: 1px solid #E2E8F0; border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+    .q { background: #EFF6FF; border-left: 4px solid #3B82F6; padding: 12px 18px; font-weight: 700; font-size: 0.9rem; color: #1E3A5F; }
+    .q .qnum { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: #3B82F6; color: white; border-radius: 50%; font-size: 0.75rem; margin-right: 9px; vertical-align: middle; flex-shrink: 0; }
+    .a { padding: 13px 18px 15px; font-size: 0.86rem; color: #334155; border-left: 4px solid #00A859; }
+    .a p { margin-bottom: 8px; }
+    .a p:last-child { margin-bottom: 0; }
+    code { background: #E8F5EE; color: #00703A; padding: 2px 6px; border-radius: 4px; font-size: 0.82em; border: 1px solid #C3E4D0; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    .warn-inline { background: #FFF8E1; border: 1px solid #FDE68A; border-left: 4px solid #F59E0B; padding: 8px 12px; border-radius: 0 6px 6px 0; margin-top: 8px; font-size: 0.82rem; color: #78350F; }
+    .tip-inline { background: #F0FAF4; border: 1px solid #C3E4D0; border-left: 4px solid #00A859; padding: 8px 12px; border-radius: 0 6px 6px 0; margin-top: 8px; font-size: 0.82rem; color: #0F172A; }
+    table { font-size: 0.82rem; border-collapse: collapse; margin: 8px 0; width: 100%; }
+    th { background: #0F172A; color: #A7F3D0; padding: 6px 12px; text-align: left; }
+    td { border: 1px solid #E2E8F0; padding: 6px 12px; background: white; }
+    footer { text-align: center; padding: 24px; color: #848688; font-size: 0.75rem; border-top: 1px solid #E2E8F0; margin-top: 30px; }
+    a { color: #00A859; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>AWS Konsolunda Nə Görürəm? <span class="badge">BONUS</span></h1>
+  <p>Terraform + Copilot Modulu · DPE-07 · <code style="background:#1a2820; color:#A7F3D0; border-color:#1e3328;">terraform apply</code>-dan sonra VPC konsolunun izahı</p>
+</header>
+
+<main>
+
+  <div class="intro">
+    <code>terraform apply</code> uğurla bitdi, AWS Console → VPC → <b>prd</b> VPC-sinə baxırsan…
+    və ekran <b>bizim yazmadığımız</b> şeylərlə doludur: qəribə ID-lər, üçüncü route table, hansısa ACL, DHCP…
+    Bu sənəd ilk baxışda yaranan sualların hamısına cavab verir. Qayda belədir:
+    <b>çaşdıran hər şeyin izahı ya "AWS-in avtomatik yaratdığı", ya da "identifikator vs ad" mövzusundadır.</b>
+  </div>
+
+  <p class="section-title">Bölmə 1 · "Mən bunu yazmamışdım!" — avtomatik yaranan şeylər</p>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">1</span>Mən VPC-yə "prd" adı vermişdim. Bəs bu <code>vpc-0be9c8f38606c4096</code> nədir?</div>
+    <div class="a">
+      <p>AWS-də hər resursun <b>iki kimliyi</b> var:</p>
+      <table>
+        <tr><th>Nə</th><th>Kim verir</th><th>Nümunə</th><th>Xüsusiyyəti</th></tr>
+        <tr><td><b>ID</b></td><td>AWS, avtomatik</td><td><code>vpc-0be9c8f...</code></td><td>Unikal, dəyişməz — API bununla işləyir</td></tr>
+        <tr><td><b>Name</b></td><td>Sən, <code>tags = { Name = "prd" }</code> ilə</td><td><code>prd</code></td><td>İnsan üçün etiket — istəsən dəyişə bilərsən</td></tr>
+      </table>
+      <p>Terraform kodumuzda <code>aws_vpc.prd.id</code> yazanda məhz o uzun ID-ni götürürdük. Yadına gəlir — subnet-lər VPC-yə bu ID ilə bağlanırdı, adla yox.</p>
+      <div class="tip-inline">✅ Qayda: <b>ID = pasport nömrəsi</b> (dəyişməz, rəsmi), <b>Name tag = üstündəki stiker</b> (oxumaq üçün).</div>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">2</span>Biz 2 route table yazdıq (public + private). Niyə konsolda <b>3</b> görünür? <code>rtb-0f98...</code> haradan gəldi?</div>
+    <div class="a">
+      <p>Üçüncüsü — <b>main route table</b>-dır və onu <b>AWS özü yaradır</b>, hər VPC ilə birlikdə, avtomatik. Sən istəsən də, istəməsən də hər VPC-nin bir main route table-ı olur.</p>
+      <p>Vəzifəsi: <b>ehtiyat plan</b>. Hansısa subnet heç bir route table-a açıq bağlanmasa (association yazılmasa), AWS onu susmaya görə main-ə bağlayır — subnet "xəritəsiz" qalmasın deyə.</p>
+      <p>Bizim 6 subnetin hamısının açıq association-u var (3 → public-rt, 3 → private-rt), ona görə main route table <b>boş-boşuna dayanıb</b> — Resource map-da heç bir subnetə xətti yoxdur. Diqqət etmisənsə!</p>
+      <div class="tip-inline">✅ Dərsdəki qaydamızın səbəbi budur: <b>hər subnetə açıq association yaz</b> — hansı subnet hansı xəritə ilə işləyir, kod baxan hər kəsə aydın olsun.</div>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">3</span><b>Main network ACL</b> (<code>acl-012851...</code>) nədir? Biz ACL-də yazmamışdıq…</div>
+    <div class="a">
+      <p>Network ACL (Access Control List) — subnet səviyyəsində <b>trafik firewall-u</b>dur: hansı paketlər girə/çıxa bilər. Hər VPC ilə birlikdə AWS bir <b>default ACL</b> yaradır və o, susmaya görə <b>hər şeyə icazə verir</b> — ona görə şəbəkəmiz problemsiz işləyir.</p>
+      <p>Security Group ilə qarışdırma: SG <b>resurs səviyyəsində</b> (məsələn, bir EC2 instance-ın qapısı), ACL <b>subnet səviyyəsində</b> (bütöv məhəllənin girişi) işləyir. Bu kursda ikisinə də dərindən girmirik — sadəcə bil ki, avtomatik yaranır və default halda maneə törətmir.</p>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">4</span><b>DHCP option set</b> (<code>dopt-01733...</code>) nədir?</div>
+    <div class="a">
+      <p>VPC daxilində işə düşən hər maşına IP ünvanı, DNS server ünvanı və s. paylamaq lazımdır — bunu DHCP edir. AWS hər VPC üçün <b>hazır standart dəst</b> qoşur: "IP-ləri belə payla, DNS kimi AWS-in öz serverini istifadə et".</p>
+      <p>Bu da avtomatik yaranan resurslardandır — 99% hallarda ona heç vaxt toxunmayacaqsan.</p>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">5</span><b>Default VPC: No</b> yazır. "Default VPC" nədir — mənim account-umda əvvəlcədən VPC var idi?</div>
+    <div class="a">
+      <p>Bəli! AWS hər yeni account-da, hər regionda <b>bir hazır "default VPC"</b> yaradır — yeni başlayanlar heç nə qurmadan dərhal server işə sala bilsin deyə. "Your VPCs" siyahısında bizimkindən başqa bir VPC də görməyinin səbəbi budur.</p>
+      <p>Bizim <code>prd</code> VPC-si isə sıfırdan, Terraform ilə qurulub — ona görə <b>Default VPC: No</b>. Prod işlərində həmişə öz VPC-ni qurursan; default VPC "tez sınaq" üçündür.</p>
+      <div class="warn-inline">⚠️ Default VPC-yə toxunma, silmə — Terraform onu tanımır (state-də yoxdur) və bizim <code>destroy</code> ona dəymir. Amma əl ilə silsən, geri qaytarmaq əziyyətlidir.</div>
+    </div>
+  </div>
+
+  <p class="section-title">Bölmə 2 · Ekrandakı sahələr nə deyir?</p>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">6</span><b>State: Available</b> — başqa hansı vəziyyətlər olur?</div>
+    <div class="a">
+      <p>VPC üçün əsasən iki vəziyyət görəcəksən: <code>pending</code> (yaradılır, bir neçə saniyə) və <code>available</code> (hazır, işləyir). Available = hər şey qaydasındadır, resurs istifadəyə hazırdır.</p>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">7</span><b>Tenancy: default</b> nə deməkdir?</div>
+    <div class="a">
+      <p>VPC-də işə salınacaq maşınların fiziki yerləşməsi haqqındadır: <code>default</code> = maşınlar AWS-in <b>ortaq fiziki serverlərində</b> işləyir (hamı kimi, standart və ucuz yol). Alternativ <code>dedicated</code> = sənə ayrılmış fiziki server — xüsusi compliance tələbləri üçündür və <b>xeyli bahadır</b>. Həmişə default istifadə edəcəyik.</p>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">8</span><b>DNS resolution: Enabled</b>, amma <b>DNS hostnames: Disabled</b> — bu ziddiyyət deyil?</div>
+    <div class="a">
+      <p>İki ayrı şeydir:</p>
+      <p><b>DNS resolution</b> = VPC içindəki maşınlar ünvanları həll edə bilir (məsələn <code>google.com</code> → IP). Bu, açıqdır — internetə çıxan maşınlar üçün lazımdır.</p>
+      <p><b>DNS hostnames</b> = AWS hər maşına avtomatik ad versin (<code>ip-10-0-1-5.eu-north-1.compute.internal</code> kimi). Biz kodda bunu açmadıq, ona görə bağlıdır — hələlik lazımımız da yoxdur.</p>
+      <div class="tip-inline">✅ Yeri gəlmişkən: modul dərsində (Fəsil 4.5) <code>enable_dns_hostnames = true</code> yazacağıq — o zaman bu sahə Enabled olacaq.</div>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">9</span><b>Owner ID: 044015804971</b> — bu nədir?</div>
+    <div class="a">
+      <p>Sənin <b>AWS account nömrəndir</b> — 12 rəqəmli unikal identifikator. <code>aws sts get-caller-identity</code> əmrində gördüyün nömrənin eynisi. Resursun "sahibi kimdir" sualına cavab verir — məsələn, resursları account-lar arasında paylaşanda vacib olur.</p>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">10</span><b>IPv6 pool: –</b> və bəzi sahələr niyə boşdur?</div>
+    <div class="a">
+      <p>Biz VPC-yə yalnız <b>IPv4</b> diapazonu verdik (<code>10.0.0.0/16</code>). IPv6 istəməli olsaydıq, kodda ayrıca yazardıq. "–" = "bu funksiya bu VPC üçün konfiqurasiya olunmayıb" deməkdir — xəta deyil, sadəcə istifadə etmirik. Eyni məntiq digər boş sahələrə də aiddir (Encryption control, Route 53 firewall və s.).</p>
+    </div>
+  </div>
+
+  <p class="section-title">Bölmə 3 · Resource map-ı necə oxumalı?</p>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">11</span>Subnetlər niyə <b>eu-north-1a / 1b / 1c</b> qrupları altında düzülüb və yanlarındakı A/B/C hərfləri nədir?</div>
+    <div class="a">
+      <p>Bu qruplaşma <b>Availability Zone</b>-lara görədir — konsol subnetləri fiziki yerləşdiyi zonaya görə göstərir. A/B/C nişanları da elə zonanın qısaltmasıdır.</p>
+      <p>Bax, memarlıq slaydımızdakı plan birə-bir reallaşıb: hər zonada 1 public + 1 private subnet. Bir zona çöksə, qalan iki zonadakı subnetlər işləyir — redundantlığın konsoldakı görüntüsü budur.</p>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">12</span>Subnetlərdən route table-lara gedən <b>xətlər</b> nəyi göstərir? Və niyə <code>prd-igw</code> "Network Connections" adlanır?</div>
+    <div class="a">
+      <p>Xətlər = bizim yazdığımız <b>route table association-lardır</b>! Hər xətt bir <code>aws_route_table_association</code> resursudur: pub-subnet-lərdən <code>prd-public-rt</code>-yə 3 xətt, pri-subnet-lərdən <code>prd-private-rt</code>-yə 3 xətt. Naviqator analogiyasını xatırla: xətt = telefonun maşına bərkidilməsi.</p>
+      <p><code>prd-igw</code> isə "Network Connections" sütunundadır, çünki Internet Gateway VPC-nin <b>kənar dünyaya bağlantısıdır</b> — konsol bütün "başqa şəbəkələrə çıxışları" (IGW, NAT, VPN, peering) bu sütunda göstərir. Bizdə yalnız biri var: internetə qapı.</p>
+      <div class="tip-inline">✅ Sınaq: <code>prd-public-rt</code>-nin üstünə mausu gətir — bağlı subnetlər işıqlanır və IGW-yə marşrut görünür. <code>prd-private-rt</code>-də isə kənar bağlantı yoxdur. Fərq — gözünün qabağında.</div>
+    </div>
+  </div>
+
+  <p class="section-title">Bölmə 4 · Praktik suallar</p>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">13</span>Bu resurslar pul yeyir? Gecə açıq qalsa nə olar?</div>
+    <div class="a">
+      <p><b>Xeyr — bu 16 resursun hamısı pulsuzdur:</b> VPC, subnet, route table, association, IGW — AWS bunlara görə pul almır. Gecə qalsa da xərc sıfırdır.</p>
+      <div class="warn-inline">⚠️ Amma vərdiş vərdişdir: dərs bitəndə <code>terraform destroy</code>. Çünki sabah memarlıqda <b>pullu</b> resurs olacaq (EC2, NAT…) və "onsuz da pulsuzdur" düşüncəsi o gün baha başa gələr. Zero-spend budget alert-in də elə bunun üçündür.</div>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">14</span>Konsoldan əl ilə bir subneti silsəm nə baş verər?</div>
+    <div class="a">
+      <p>AWS silər — amma Terraform-un <b>state faylı bundan xəbərsizdir</b>: state hələ də "6 subnet var" deyir. Buna <b>drift</b> (sürüşmə) deyilir: kod ↔ state ↔ AWS bir-birindən ayrı düşür.</p>
+      <p>Növbəti <code>terraform plan</code> fərqi görəcək və deyəcək: "1 to add" — silinən subneti <b>bərpa etməyi</b> təklif edəcək. <code>apply</code> etsən, subnet geri qayıdır. Terraform-un gücü budur: kodda yazılan = mövcud olmalı olan.</p>
+      <div class="tip-inline">✅ Qızıl qayda: Terraform ilə qurulan infrastruktura <b>əl ilə toxunma</b> — hər dəyişiklik kodda edilir, <code>apply</code> ilə tətbiq olunur.</div>
+    </div>
+  </div>
+
+  <div class="qa">
+    <div class="q"><span class="qnum">15</span>Region seçicisində <b>Europe (Stockholm)</b> yazır. Başqa regiona keçsəm resurslarım görünəcək?</div>
+    <div class="a">
+      <p><b>Xeyr!</b> AWS konsolu həmişə <b>bir regionun</b> resurslarını göstərir. Sənin VPC-n <code>eu-north-1</code>-də (Stokholm) yaşayır — konsolda başqa region seçsən, siyahı "boş" görünəcək və ilk anda "resurslarım silinib?!" təəssüratı yaranar. Silinməyib — sadəcə başqa şəhərə baxırsan.</p>
+      <div class="tip-inline">✅ "Resurslarım yoxa çıxıb" panikasının 1 nömrəli səbəbi yanlış regiondur. Əvvəl sağ yuxarı künc: <b>Stockholm seçilib?</b></div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Data Platform &amp; Engineering Bootcamp · DPE-07 · Bonus material · <a href="../index.html">← Ana səhifə</a>
+</footer>
+
+</body>
+</html>

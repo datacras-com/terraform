@@ -1,0 +1,7 @@
+# ══ Soraq §11: git-e NE GETMIR ══
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+# tfvars-i bu layihede saxlayiriq (secrets yoxdur);
+# secrets olsaydi: *.tfvars da bura girerdi

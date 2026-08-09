@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terraform + GitHub Copilot — DPE-07</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #F7F9F8;
+      color: #0F172A;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #0F172A;
+      padding: 28px 48px 24px;
+      border-bottom: 3px solid #00A859;
+    }
+
+    header h1 {
+      color: #00A859;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    header p {
+      color: #848688;
+      font-size: 0.82rem;
+      margin-top: 5px;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #00A859;
+      color: white;
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    main {
+      max-width: 860px;
+      margin: 36px auto;
+      padding: 0 24px;
+    }
+
+    .intro {
+      background: white;
+      border: 1px solid #E2E8F0;
+      border-left: 4px solid #00A859;
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 32px;
+      font-size: 0.875rem;
+      color: #334155;
+      line-height: 1.6;
+    }
+
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #848688;
+      margin-bottom: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 14px;
+      margin-bottom: 40px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 18px 20px;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      position: relative;
+    }
+
+    .card:hover {
+      border-color: #00A859;
+      box-shadow: 0 2px 12px rgba(0,168,89,0.12);
+    }
+
+    .card-num {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #00A859;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+
+    .card-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+
+    .card-topics {
+      font-size: 0.72rem;
+      color: #848688;
+      line-height: 1.6;
+    }
+
+    .card-topics span {
+      display: inline-block;
+      background: #F0FAF4;
+      border: 1px solid #C3E4D0;
+      color: #00703A;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin: 2px 2px 0 0;
+      font-size: 0.67rem;
+    }
+
+    .card-topics span.bonus {
+      background: #F3E8FF;
+      border-color: #D8B4FE;
+      color: #7E22CE;
+    }
+
+    .card-topics span.free {
+      background: #EFF6FF;
+      border-color: #BFDBFE;
+      color: #1D4ED8;
+    }
+
+    .card-topics span.warn {
+      background: #FFF8E1;
+      border-color: #FDE68A;
+      color: #B45309;
+    }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      color: #848688;
+      font-size: 0.75rem;
+      border-top: 1px solid #E2E8F0;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Terraform + GitHub Copilot <span class="badge">DPE-07</span></h1>
+  <p>Data Platform &amp; Engineering Bootcamp · 2 Dərs × 3 saat · Azərbaycan dilində</p>
+</header>
+
+<main>
+  <div class="intro">
+    Bu modul <strong>Infrastructure as Code</strong> anlayışını Terraform ilə öyrədir və bütün prosesi
+    <strong>GitHub Copilot</strong> ilə sürətləndirməyi göstərir — kod yazmaqdan modul qurmağa, commit mesajından
+    <code>.gitignore</code>-a qədər. Praktika iki mühitdə aparılır: hər tələbənin <span style="color:#1D4ED8; font-weight:600;">öz AWS account-u</span> (free tier)
+    və <span style="color:#7E22CE; font-weight:600;">on-prem standalone ESXi</span>.
+    Kursun ana xətti: <strong>Copilot sürətləndirir, <code>terraform validate</code> yoxlayır</strong> — AI-a kor-koranə etibar yox, yoxlanılan sürət.
+  </div>
+
+  <a href="kurs.html" style="display:block; background:#0F172A; border-radius:10px; padding:16px 22px; margin-bottom:30px; text-decoration:none; border-left:4px solid #00A859;">
+    <div style="color:#00A859; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:1.2px;">Tövsiyə olunan giriş</div>
+    <div style="color:#f8fafc; font-size:1.05rem; font-weight:700; margin-top:4px;">📚 Vahid Kurs Səhifəsi — hamısı bir yerdə →</div>
+    <div style="color:#94a3b8; font-size:0.8rem; margin-top:4px;">Bütün fəsillər, bonus sənədlər və hazırlıq materialı tək naviqasiyalı səhifədə</div>
+  </a>
+
+  <p class="section-title">Hazırlıq</p>
+
+  <div class="grid">
+    <a class="card" href="prework/prework.html">
+      <div class="card-num">Pre-work · Dərsdən əvvəl</div>
+      <div class="card-title">Mühitin Quraşdırılması</div>
+      <div class="card-topics">
+        <span>GitHub + Copilot</span>
+        <span>VS Code</span>
+        <span>Terraform</span>
+        <span>AWS account</span>
+        <span class="warn">Budget alert</span>
+      </div>
+    </a>
+  </div>
+
+  <p class="section-title">Dərs 1 — Fəsillər</p>
+
+  <div class="grid">
+
+    <a class="card" href="slides/fesil-1-github-copilot.html">
+      <div class="card-num">Fəsil 01</div>
+      <div class="card-title">GitHub Copilot-a Giriş</div>
+      <div class="card-topics">
+        <span>Copilot nədir</span>
+        <span>Necə işləyir</span>
+        <span>Planlar</span>
+        <span class="bonus">Claude Code</span>
+        <span class="warn">GenAI limitləri</span>
+      </div>
+    </a>
+
+    <a class="card" href="slides/fesil-2-terraform.html">
+      <div class="card-num">Fəsil 02</div>
+      <div class="card-title">HashiCorp Terraform-a Giriş</div>
+      <div class="card-topics">
+        <span>IaC faydaları</span>
+        <span>Komponentlər</span>
+        <span>init/plan/apply/destroy</span>
+        <span class="free">Demo: əl ilə VPC</span>
+      </div>
+    </a>
+
+    <a class="card" href="slides/fesil-3-muhit-qurulusu.html">
+      <div class="card-num">Fəsil 03</div>
+      <div class="card-title">Mühitin Qurulması</div>
+      <div class="card-topics">
+        <span>Copilot + VS Code</span>
+        <span>Terraform install</span>
+        <span>AWS credentials</span>
+        <span class="bonus">On-prem baxış</span>
+        <span class="warn">Yekun checklist</span>
+      </div>
+    </a>
+
+    <a class="card" href="slides/fesil-4-terraform-development.html">
+      <div class="card-num">Fəsil 04</div>
+      <div class="card-title">Terraform Development — Copilot ilə</div>
+      <div class="card-topics">
+        <span>Scaffold</span>
+        <span>VPC + 6 subnet</span>
+        <span>Comment-driven</span>
+        <span>/fix /explain /doc /tests</span>
+        <span>Modul yaratmaq</span>
+        <span class="free">16 resurs, 0 ₼</span>
+      </div>
+    </a>
+
+  </div>
+
+  <p class="section-title">Dərs 2 — Fəsillər <span style="font-weight:400; text-transform:none; letter-spacing:0;">(hazırlanır)</span></p>
+
+  <div class="grid">
+    <!-- Fəsil 4-7 kartları transkriptlər hazır olduqca əlavə olunacaq -->
+  </div>
+
+  <p class="section-title">Bonus materiallar</p>
+
+  <div class="grid">
+    <a class="card" href="bonus/vpc-konsol-sual-cavab.html">
+      <div class="card-num">Bonus · Fəsil 4</div>
+      <div class="card-title">AWS Konsolunda Nə Görürəm?</div>
+      <div class="card-topics">
+        <span>15 sual-cavab</span>
+        <span>Main route table sirri</span>
+        <span>ID vs Name</span>
+        <span class="free">Drift nədir</span>
+      </div>
+    </a>
+
+    <a class="card" href="bonus/server-temelleri-aws-vcenter.html">
+      <div class="card-num">Bonus · Təməllər</div>
+      <div class="card-title">Server Qurmazdan Əvvəl Nə Lazımdır?</div>
+      <div class="card-topics">
+        <span>Compute/Şəbəkə/Storage</span>
+        <span>AWS vs vCenter</span>
+        <span>Data source rolu</span>
+        <span class="bonus">Terraform-dan əvvəlki dünya</span>
+      </div>
+    </a>
+
+    <a class="card" href="bonus/terraform-dili-soraq.html">
+      <div class="card-num">Bonus · Soraq</div>
+      <div class="card-title">Terraform Dili — Soraq Kitabçası</div>
+      <div class="card-topics">
+        <span>variables + tfvars</span>
+        <span>outputs · locals</span>
+        <span>Tiplər · istinadlar</span>
+        <span>count/for_each</span>
+        <span class="free">Əmrlər cib vərəqəsi</span>
+      </div>
+    </a>
+
+    <a class="card" href="bonus/modullar-sade-dilde.html">
+      <div class="card-num">Bonus · Modullar</div>
+      <div class="card-title">Modullar — Sadə Dildə</div>
+      <div class="card-topics">
+        <span>Resept analogiyası</span>
+        <span>3 qapı: in/main/out</span>
+        <span class="bonus">Copilot ilə 7 addım</span>
+        <span class="warn">3 tələ</span>
+      </div>
+    </a>
+  </div>
+
+  <p class="section-title">Laboratoriya işləri</p>
+
+  <div class="grid">
+
+    <a class="card" href="labs/aws/">
+      <div class="card-num">Lab · AWS</div>
+      <div class="card-title">AWS Free Tier Tapşırıqları</div>
+      <div class="card-topics">
+        <span>S3 data-lake</span>
+        <span>VPC</span>
+        <span>for_each</span>
+        <span class="free">Öz account-unda</span>
+      </div>
+    </a>
+
+    <a class="card" href="labs/esxi/">
+      <div class="card-num">Lab · ESXi</div>
+      <div class="card-title">On-prem ESXi Tapşırıqları</div>
+      <div class="card-topics">
+        <span>esxi provider</span>
+        <span>SSH auth</span>
+        <span>VM yaratmaq</span>
+        <span class="bonus">Multi-provider</span>
+      </div>
+    </a>
+
+  </div>
+</main>
+
+<footer>
+  Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform + GitHub Copilot Modulu
+</footer>
+
+<!-- Password Gate -->
+<div id="gate" style="
+  position:fixed;inset:0;z-index:9999;
+  background:#0F172A;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+">
+  <div style="text-align:center;margin-bottom:32px;">
+    <div style="font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#00A859;margin-bottom:12px;">DPE-07 · Terraform + Copilot Modulu</div>
+    <div style="font-size:28px;font-weight:700;color:#f8fafc;">🔒 Giriş</div>
+    <div style="font-size:14px;color:#64748b;margin-top:8px;">Davam etmək üçün şifrəni daxil edin</div>
+  </div>
+  <div style="width:100%;max-width:320px;">
+    <input id="gate-input" type="password" placeholder="Şifrə" style="
+      width:100%;padding:14px 16px;
+      background:#1a2820;border:1px solid #1e3328;border-radius:10px;
+      color:#f1f5f9;font-size:16px;outline:none;
+      transition:border-color .2s;
+    "
+    onkeydown="if(event.key==='Enter')checkPass()"
+    onfocus="this.style.borderColor='#00A859'"
+    onblur="this.style.borderColor='#1e3328'"
+    />
+    <div id="gate-err" style="color:#f87171;font-size:13px;margin-top:8px;text-align:center;display:none;">Şifrə yanlışdır</div>
+    <button onclick="checkPass()" style="
+      width:100%;margin-top:12px;padding:14px;
+      background:#00A859;border:none;border-radius:10px;
+      color:#fff;font-size:15px;font-weight:700;cursor:pointer;
+      transition:background .2s;
+    "
+    onmouseover="this.style.background='#00703A'"
+    onmouseout="this.style.background='#00A859'"
+    >Daxil ol →</button>
+  </div>
+</div>
+
+<script>
+  const PASS = 'DataCras2026!';
+  if(sessionStorage.getItem('dpe07-auth')==='1') document.getElementById('gate').style.display='none';
+  function checkPass(){
+    if(document.getElementById('gate-input').value===PASS){
+      sessionStorage.setItem('dpe07-auth','1');
+      document.getElementById('gate').style.display='none';
+    } else {
+      document.getElementById('gate-err').style.display='block';
+      document.getElementById('gate-input').value='';
+      document.getElementById('gate-input').focus();
+    }
+  }
+</script>
+</body>
+</html>

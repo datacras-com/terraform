@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pre-work — Mühitin Quraşdırılması · DPE-07</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #F7F9F8;
+      color: #0F172A;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    header {
+      background: #0F172A;
+      padding: 28px 48px 24px;
+      border-bottom: 3px solid #00A859;
+    }
+
+    header h1 { color: #00A859; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.3px; }
+    header p { color: #848688; font-size: 0.82rem; margin-top: 5px; }
+
+    .badge {
+      display: inline-block; background: #00A859; color: white;
+      font-size: 0.68rem; font-weight: 600; padding: 2px 8px;
+      border-radius: 10px; margin-left: 8px; vertical-align: middle;
+    }
+
+    main { max-width: 800px; margin: 36px auto; padding: 0 24px; }
+
+    .intro {
+      background: white; border: 1px solid #E2E8F0; border-left: 4px solid #00A859;
+      padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 32px;
+      font-size: 0.875rem; color: #334155;
+    }
+
+    .warn {
+      background: #FFF8E1; border: 1px solid #FDE68A; border-left: 4px solid #F59E0B;
+      padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0;
+      font-size: 0.84rem; color: #78350F;
+    }
+
+    .tip {
+      background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 4px solid #3B82F6;
+      padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0;
+      font-size: 0.84rem; color: #1E3A5F;
+    }
+
+    .ok {
+      background: #F0FAF4; border: 1px solid #C3E4D0; border-left: 4px solid #00A859;
+      padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0;
+      font-size: 0.84rem; color: #0F172A;
+    }
+
+    section.step {
+      background: white; border: 1px solid #E2E8F0; border-radius: 10px;
+      padding: 22px 26px; margin-bottom: 22px;
+    }
+
+    .step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+
+    .step-num {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; background: #00A859; color: white;
+      border-radius: 50%; font-size: 0.95rem; font-weight: 700; flex-shrink: 0;
+    }
+
+    .step-header h2 { font-size: 1.05rem; color: #0F172A; font-weight: 700; }
+    .step-time { margin-left: auto; font-size: 0.7rem; color: #848688; background: #F1F5F9; padding: 3px 10px; border-radius: 10px; white-space: nowrap; }
+
+    section.step h3 { font-size: 0.85rem; color: #00703A; margin: 16px 0 6px; }
+    section.step p, section.step li { font-size: 0.85rem; color: #334155; }
+    section.step ol, section.step ul { padding-left: 22px; margin: 8px 0; }
+    section.step li { margin-bottom: 6px; }
+
+    code {
+      background: #E8F5EE; color: #00703A; padding: 2px 6px;
+      border-radius: 4px; font-size: 0.8em; border: 1px solid #C3E4D0;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+    }
+
+    pre {
+      background: #1E293B; color: #E2E8F0; padding: 12px 16px;
+      border-radius: 8px; border-left: 4px solid #00A859;
+      font-size: 0.78rem; line-height: 1.5; margin: 10px 0;
+      overflow-x: auto; color-scheme: dark;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+    }
+
+    pre code { background: transparent; color: #E2E8F0; border: none; padding: 0; font-size: 1em; }
+    pre .c { color: #64748B; }
+    pre .g { color: #4ADE80; }
+
+    a { color: #00A859; font-weight: 600; }
+
+    .os-tag {
+      display: inline-block; font-size: 0.68rem; font-weight: 700;
+      padding: 1px 8px; border-radius: 4px; margin-right: 6px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .os-mac { background: #F1F5F9; color: #334155; border: 1px solid #CBD5E1; }
+    .os-linux { background: #FFF8E1; color: #B45309; border: 1px solid #FDE68A; }
+    .os-win { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+
+    .checklist { list-style: none; padding-left: 0 !important; }
+    .checklist li {
+      padding: 8px 12px; background: #F8FAFC; border: 1px solid #E2E8F0;
+      border-radius: 6px; margin-bottom: 6px; font-size: 0.84rem;
+    }
+    .checklist li::before { content: "☐ "; color: #00A859; font-weight: 700; }
+
+    footer {
+      text-align: center; padding: 24px; color: #848688; font-size: 0.75rem;
+      border-top: 1px solid #E2E8F0; margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Pre-work: Mühitin Quraşdırılması <span class="badge">DPE-07</span></h1>
+  <p>Terraform + GitHub Copilot Modulu · Dərsdən əvvəl tamamlanmalıdır · ~45–60 dəqiqə</p>
+</header>
+
+<main>
+
+  <div class="intro">
+    Bu təlimatı <strong>1-ci dərsdən əvvəl</strong> tamamlayın. Dərsdə quraşdırmaya vaxt ayırmayacağıq —
+    yalnız 15 dəqiqəlik yoxlama olacaq. Hər addımın sonunda yoxlama əmri var: əmr işləyirsə, addım tamamdır.
+    Problem yaranarsa, dərsdən əvvəl müəllimə yazın.
+  </div>
+
+  <!-- STEP 1 -->
+  <section class="step">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <h2>GitHub Account + Copilot</h2>
+      <span class="step-time">~10 dəq</span>
+    </div>
+
+    <ol>
+      <li><a href="https://github.com/signup" target="_blank">github.com/signup</a> — account-unuz yoxdursa, yaradın.</li>
+      <li><a href="https://github.com/features/copilot" target="_blank">github.com/features/copilot</a> səhifəsinə keçin və <strong>Copilot Free</strong> planını aktivləşdirin (ayda 2000 code completion + 50 chat mesajı — kurs üçün kifayətdir).</li>
+      <li>Yoxlama: <a href="https://github.com/settings/copilot" target="_blank">github.com/settings/copilot</a> səhifəsində Copilot statusu <strong>aktiv</strong> görünməlidir.</li>
+    </ol>
+
+    <div class="tip">
+      💡 <strong>Tələbəsinizsə:</strong> <a href="https://github.com/education" target="_blank">GitHub Education</a>-a
+      universitet e-poçtu ilə müraciət edin — <strong>Copilot Pro pulsuz</strong> verilir (limitsiz completion).
+      Təsdiq bir neçə gün çəkə bilər, ona görə indi başlayın.
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="step">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <h2>VS Code + Extension-lar</h2>
+      <span class="step-time">~10 dəq</span>
+    </div>
+
+    <ol>
+      <li><a href="https://code.visualstudio.com/download" target="_blank">code.visualstudio.com/download</a> — öz əməliyyat sisteminiz üçün endirin və quraşdırın.</li>
+      <li>VS Code-u açın → sol paneldə <strong>Extensions</strong> (⇧⌘X / Ctrl+Shift+X) → <code>HashiCorp Terraform</code> extension-unu quraşdırın (sintaksis rəngləmə, autocomplete).</li>
+      <li><strong>Copilot barədə:</strong> yeni VS Code versiyalarında GitHub Copilot və Copilot Chat <strong>daxili (Built-in)</strong> gəlir — ayrıca quraşdırmaq lazım deyil (extension səhifəsində Install əvəzinə "Disable AI Features" görünür). Köhnə VS Code-dursa, <code>GitHub Copilot</code> extension-unu quraşdırın (Chat onunla birgə gəlir) — yalnız rəsmi olanı: naşir <em>github.com</em> təsdiqli olmalıdır.</li>
+      <li>Sağ aşağı küncdə Copilot ikonuna klik → <strong>Sign in to GitHub</strong> → brauzerdə təsdiqləyin.</li>
+    </ol>
+
+    <div class="ok">
+      ✅ <strong>Yoxlama:</strong> istənilən faylda <code>// hello world funksiyası</code> yazın —
+      Copilot boz rəngdə kod təklif etməlidir. Təklifi <strong>Tab</strong> ilə qəbul edirsiniz.
+    </div>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="step">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <h2>Terraform</h2>
+      <span class="step-time">~10 dəq</span>
+    </div>
+
+    <h3><span class="os-tag os-mac">macOS</span>Homebrew ilə</h3>
+    <pre><code>brew tap hashicorp/tap
+brew install hashicorp/tap/terraform</code></pre>
+
+    <h3><span class="os-tag os-linux">Linux</span>Ubuntu / Debian</h3>
+    <pre><code>wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform</code></pre>
+
+    <h3><span class="os-tag os-win">Windows</span>winget ilə (PowerShell)</h3>
+    <pre><code>winget install Hashicorp.Terraform</code></pre>
+    <p>Alternativ: <a href="https://developer.hashicorp.com/terraform/install" target="_blank">developer.hashicorp.com/terraform/install</a> səhifəsindən ZIP endirib <code>PATH</code>-a əlavə edin.</p>
+
+    <div class="ok">
+      ✅ <strong>Yoxlama</strong> (yeni terminal pəncərəsində):
+      <pre><code>terraform version
+<span class="c"># Terraform v1.x.x çıxmalıdır</span></code></pre>
+    </div>
+  </section>
+
+  <!-- STEP 4 -->
+  <section class="step">
+    <div class="step-header">
+      <div class="step-num">4</div>
+      <h2>AWS Account</h2>
+      <span class="step-time">~15 dəq</span>
+    </div>
+
+    <ol>
+      <li><a href="https://aws.amazon.com/free" target="_blank">aws.amazon.com/free</a> — yeni account yaradın (kredit kartı tələb olunur, amma kurs boyu xərc çıxmayacaq). Qeydiyyatda <strong>Free plan</strong> seçin.</li>
+      <li>Region olaraq <strong>eu-north-1 (Stockholm)</strong> istifadə edəcəyik — konsolda sağ yuxarıdan seçin.</li>
+    </ol>
+
+    <h3>IAM istifadəçisi (Terraform üçün)</h3>
+    <ol>
+      <li>AWS Console → <strong>IAM</strong> → <strong>Users</strong> → <strong>Create user</strong> → ad: <code>terraform-student</code></li>
+      <li><strong>Attach policies directly</strong> → <code>AdministratorAccess</code> seçin (yalnız şəxsi tədris account-u üçün məqbuldur!)</li>
+      <li>Yaradılan istifadəçiyə keçin → <strong>Security credentials</strong> → <strong>Create access key</strong> → <em>Command Line Interface (CLI)</em> → key-ləri təhlükəsiz yerdə saxlayın (bir dəfə göstərilir!)</li>
+    </ol>
+
+    <h3>Budget alert (MƏCBURİDİR)</h3>
+    <ol>
+      <li>Console → <strong>Billing and Cost Management</strong> → <strong>Budgets</strong> → <strong>Create budget</strong></li>
+      <li><strong>Zero spend budget</strong> template-ini seçin → e-poçtunuzu yazın → yaradın.</li>
+    </ol>
+
+    <div class="warn">
+      ⚠️ Bu addımı ötürməyin! Budget alert unudulmuş resurs pula çevrilməmişdən <em>əvvəl</em> sizə e-poçt göndərir.
+      Kursun sonunda hər şeyi <code>terraform destroy</code> ilə siləcəyik — bu, kursun rəsmi ritualıdır.
+    </div>
+
+    <h3>AWS CLI</h3>
+    <pre><code><span class="c"># macOS</span>
+brew install awscli
+<span class="c"># Ubuntu/Debian</span>
+sudo apt install awscli
+<span class="c"># Windows (PowerShell)</span>
+winget install Amazon.AWSCLI</code></pre>
+
+    <pre><code>aws configure
+<span class="c"># AWS Access Key ID:     [IAM-dən aldığınız key]</span>
+<span class="c"># AWS Secret Access Key: [IAM-dən aldığınız secret]</span>
+<span class="c"># Default region name:   eu-north-1</span>
+<span class="c"># Default output format: json</span></code></pre>
+
+    <div class="ok">
+      ✅ <strong>Yoxlama:</strong>
+      <pre><code>aws sts get-caller-identity
+<span class="c"># Account nömrəniz və terraform-student istifadəçisi görünməlidir</span></code></pre>
+    </div>
+  </section>
+
+  <!-- STEP 5 -->
+  <section class="step">
+    <div class="step-header">
+      <div class="step-num">5</div>
+      <h2>Git</h2>
+      <span class="step-time">~5 dəq</span>
+    </div>
+    <pre><code><span class="c"># macOS: Xcode CLT ilə gəlir, yoxdursa:</span>
+xcode-select --install
+<span class="c"># Ubuntu/Debian</span>
+sudo apt install git
+<span class="c"># Windows</span>
+winget install Git.Git</code></pre>
+    <div class="ok">✅ <strong>Yoxlama:</strong> <code>git --version</code></div>
+  </section>
+
+  <!-- FINAL CHECKLIST -->
+  <section class="step">
+    <div class="step-header">
+      <div class="step-num">✓</div>
+      <h2>Son Yoxlama Siyahısı</h2>
+    </div>
+    <p>Dərsə gəlməzdən əvvəl bunların hamısı işləməlidir:</p>
+    <ul class="checklist">
+      <li>VS Code-da Copilot ikonu aktivdir və kod təklif edir (Tab ilə qəbul)</li>
+      <li><code>terraform version</code> → v1.x çıxır</li>
+      <li><code>aws sts get-caller-identity</code> → account məlumatı çıxır</li>
+      <li><code>git --version</code> → versiya çıxır</li>
+      <li>AWS Budgets-də Zero spend budget yaradılıb</li>
+    </ul>
+    <div class="tip">
+      💡 <strong>ESXi barədə:</strong> on-prem lab üçün heç nə quraşdırmırsınız — ESXi giriş məlumatları
+      dərsdə müəllim tərəfindən veriləcək.
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform + GitHub Copilot Modulu · <a href="../index.html">← Ana səhifə</a>
+</footer>
+
+</body>
+</html>
