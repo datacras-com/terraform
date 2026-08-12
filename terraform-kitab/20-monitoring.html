@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitorinq və Loqlama · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 20</div>
+  <h1>Monitorinq və Loqlama</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">İnfrastrukturu qurmaq işin yarısıdır — onun sağlam işlədiyini bilmək ikinci yarısıdır. Bu fəsildə Terraform ilə AWS CloudWatch və Azure Monitor-u konfiqurasiya edəcəyik: metric izləyəcəyik, hədd aşılanda alarm qurduracağıq və loqları mərkəzləşdirəcəyik. Bu, kitabın son fəslidir — sonda bundan sonra nə etmək lazım olduğuna dair qısa yol xəritəsi var.</div>
+
+  <p class="section-title">1 · Monitorinq və loqlama niyə vacibdir</p>
+  <div class="card">
+    <h2>Problemi istifadəçi sənə deməzdən əvvəl bilmək</h2>
+    <p>Monitorinqin məqsədi sadədir: nasazlıq istifadəçiyə çatmamış aşkarlansın. Bunun dörd əsas faydası var:</p>
+    <ul>
+      <li><strong>Performans izləmə</strong> — tətbiq və servislərin göstəricilərini izləmək onların SLA-lara cavab verdiyini yoxlamağa imkan verir.</li>
+      <li><strong>Xəta aşkarlama</strong> — loqlar nasazlığın səbəbini tapmaq üçün əsas mənbədir. Loq yoxdursa, təxmin etməkdən başqa yol qalmır.</li>
+      <li><strong>Təhlükəsizlik nəzarəti</strong> — giriş cəhdləri, siyasət dəyişiklikləri kimi hadisələri qeyd etmək pozuntuları vaxtında görməyə kömək edir.</li>
+      <li><strong>Avtomatik xəbərdarlıq</strong> — əvvəlcədən təyin olunmuş hədd aşılanda və ya anomaliya görünəndə komandaya dərhal bildiriş getsin.</li>
+    </ul>
+    <div class="note">Monitorinqi «sonra əlavə edərik» siyahısına salmaq ən bahalı qərarlardan biridir. Terraform-da monitorinq resource-larını izlədikləri resource-la <em>eyni</em> modulda saxla — belədə yeni servis yaradan hər kəs onunla birgə alarm da alır.</div>
+  </div>
+
+  <p class="section-title">2 · Terraform ilə monitorinqin üç hissəsi</p>
+  <div class="card">
+    <h2>a. İnfrastruktur monitorinqi</h2>
+    <p>Terraform AWS CloudWatch, Azure Monitor və Google Cloud Monitoring kimi vasitələri konfiqurasiya edə bilər. CPU istifadəsi, yaddaş, şəbəkə trafiki kimi <strong>metric</strong>-lər avtomatik yığılır və təhlil olunur.</p>
+    <h2>b. Loqlama</h2>
+    <p>Loqlar infrastrukturda baş verən hadisələrin ətraflı qeydidir. Terraform ilə AWS CloudWatch Logs, Azure Log Analytics və Google Cloud Logging qurulur — loqlar toplanır, saxlanılır və təhlil edilir.</p>
+    <h2>c. Alarmlar</h2>
+    <p>Əvvəlcədən müəyyən edilmiş həddlərə əsaslanan <strong>alarm</strong>-lar problem böyüməmiş reaksiya verməyə imkan verir. Terraform bütün platformalarda bildiriş mexanizmini konfiqurasiya edə bilir.</p>
+    <table>
+      <tr><th>Hissə</th><th>AWS</th><th>Azure</th><th>GCP</th></tr>
+      <tr><td>Metric toplama</td><td>CloudWatch Metrics</td><td>Azure Monitor Metrics</td><td>Cloud Monitoring</td></tr>
+      <tr><td>Loq toplama</td><td>CloudWatch Logs</td><td>Log Analytics</td><td>Cloud Logging</td></tr>
+      <tr><td>Alarm</td><td><code>aws_cloudwatch_metric_alarm</code></td><td><code>azurerm_monitor_metric_alert</code></td><td><code>google_monitoring_alert_policy</code></td></tr>
+      <tr><td>Bildiriş kanalı</td><td>SNS topic</td><td>Action Group</td><td>Notification Channel</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">3 · Nümunə — AWS CloudWatch ilə metric və alarm</p>
+  <div class="card">
+    <h2>a. CPU alarmı</h2>
+    <p>EC2 instance-ın CPU istifadəsini izləyək və hədd aşılanda xəbərdarlıq göndərək.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_cloudwatch_metric_alarm"</span> <span class="s">"high_cpu_alarm"</span> {
+  alarm_name          = <span class="s">"HighCPUAlarm"</span>
+  comparison_operator = <span class="s">"GreaterThanThreshold"</span>
+  <span class="c"># 2 ardıcıl dövr hədd aşılsa alarm işə düşsün</span>
+  evaluation_periods  = 2
+  metric_name         = <span class="s">"CPUUtilization"</span>
+  namespace           = <span class="s">"AWS/EC2"</span>
+  <span class="c"># Hər dövr 300 saniyə = 5 dəqiqə</span>
+  period              = 300
+  statistic           = <span class="s">"Average"</span>
+  threshold           = 80
+  alarm_actions       = [aws_sns_topic.alert_topic.arn]
+
+  <span class="c"># Hansı instance izlənilir</span>
+  dimensions = {
+    InstanceId = aws_instance.my_instance.id
+  }
+}</code></pre>
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li>CloudWatch EC2 instance-ın <code>CPUUtilization</code> metric-ini izləyir.</li>
+      <li>Orta CPU istifadəsi <strong>iki ardıcıl 5 dəqiqəlik dövr</strong> ərzində 80%-i keçsə, alarm işə düşür.</li>
+      <li><code>alarm_actions</code> alarm işə düşəndə nə baş verəcəyini deyir — burada SNS topic-ə mesaj göndərilir.</li>
+    </ul>
+    <div class="tip"><code>evaluation_periods = 2</code> təsadüfi seçilməyib. Bir dövrlə alarm qursan, qısamüddətli sıçrayışlar da xəbərdarlıq yaradacaq və komanda tezliklə bildirişlərə fikir verməyi dayandıracaq. Bu, «alert fatigue» adlanır və monitorinqin ən çox rast gəlinən uğursuzluq səbəbidir.</div>
+
+    <h2>b. SNS ilə bildiriş qurmaq</h2>
+    <p>Alarm işə düşəndə kimsə xəbər tutmalıdır. AWS-də bunun üçün Simple Notification Service (SNS) istifadə olunur.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_sns_topic"</span> <span class="s">"alert_topic"</span> {
+  name = <span class="s">"cpu-alerts-topic"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_sns_topic_subscription"</span> <span class="s">"email_subscription"</span> {
+  topic_arn = aws_sns_topic.alert_topic.arn
+  protocol  = <span class="s">"email"</span>
+  <span class="c"># Bildiriş göndəriləcək ünvanı öz ünvanınla əvəz et</span>
+  endpoint  = <span class="s">"admin@example.com"</span>
+}</code></pre>
+    <p>Bu konfiqurasiyada SNS topic yaradılır və ona e-poçt abunəliyi əlavə olunur. CPU alarmı işə düşəndə göstərilən ünvana bildiriş gedir.</p>
+    <div class="warn">E-poçt abunəliyi <strong>təsdiq tələb edir</strong>. Terraform <code>apply</code> uğurla bitsə də, ünvan sahibi məktubdakı linkə klikləyənə qədər abunəlik <code>pending confirmation</code> vəziyyətində qalır və bildiriş gəlmir. Alarm qurduqdan sonra onu qəsdən işə salıb bildirişin gəldiyini yoxla.</div>
+    <div class="note">E-poçt tək kanal olaraq zəifdir — gecə saat 3-də kimsə poçta baxmır. Prod üçün SNS-i Slack, PagerDuty və ya Opsgenie ilə birləşdir; SNS bunları HTTPS endpoint və ya Lambda vasitəsilə dəstəkləyir.</div>
+  </div>
+
+  <p class="section-title">4 · Nümunə — Azure Monitor ilə metric və alert</p>
+  <div class="card">
+    <h2>a. Virtual maşın üçün CPU alert-i</h2>
+    <p>Azure Monitor Azure infrastrukturunun performansını izləmək üçün əhatəli həlldir. Virtual maşının CPU istifadəsinə görə alert quraq.</p>
+<pre><code><span class="k">resource</span> <span class="s">"azurerm_monitor_metric_alert"</span> <span class="s">"cpu_alert"</span> {
+  name                = <span class="s">"HighCPUAlert"</span>
+  resource_group_name = azurerm_resource_group.example.name
+  <span class="c"># Hansı resurs izlənilir</span>
+  scopes              = [azurerm_linux_virtual_machine.example.id]
+  description         = <span class="s">"CPU istifadəsi 80%-i keçəndə xəbərdarlıq"</span>
+
+  criteria {
+    metric_name      = <span class="s">"Percentage CPU"</span>
+    aggregation      = <span class="s">"Average"</span>
+    operator         = <span class="s">"GreaterThan"</span>
+    threshold        = 80
+    dimensions       = []
+    time_grain       = <span class="s">"PT1M"</span>
+    metric_namespace = <span class="s">"microsoft.compute/virtualmachines"</span>
+  }
+
+  action {
+    action_group_id = azurerm_monitor_action_group.example.id
+  }
+}</code></pre>
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li>Azure Monitor virtual maşının CPU istifadəsini izləyir.</li>
+      <li>Müəyyən vaxt aralığında orta CPU 80%-i keçsə, alert işə düşür.</li>
+      <li><code>time_grain = "PT1M"</code> ISO 8601 formatındadır və «1 dəqiqə» deməkdir.</li>
+    </ul>
+
+    <h2>b. Action Group — bildirişin çatdırılması</h2>
+    <p>Azure-da alert-in kimə və necə çatacağını <strong>action group</strong> müəyyən edir. Bir action group-u bir neçə alert-ə qoşmaq olar.</p>
+<pre><code><span class="k">resource</span> <span class="s">"azurerm_monitor_action_group"</span> <span class="s">"example"</span> {
+  name                = <span class="s">"my-action-group"</span>
+  resource_group_name = azurerm_resource_group.example.name
+  <span class="c"># SMS və push bildirişlərində görünən qısa ad (maks. 12 simvol)</span>
+  short_name          = <span class="s">"alertgrp"</span>
+
+  email_receiver {
+    name          = <span class="s">"emailalerts"</span>
+    email_address = <span class="s">"admin@example.com"</span>
+  }
+}</code></pre>
+    <p>Burada action group göstərilən ünvana e-poçt göndərir — CPU alert-i hər dəfə işə düşəndə.</p>
+    <div class="tip">Action group-u ayrıca resource kimi saxlamağın üstünlüyü: bildiriş ünvanı dəyişəndə onlarla alert-i deyil, bir resource-u redaktə edirsən. Bunu modul çıxışı (output) kimi ver, bütün komandalar eyni qrupdan istifadə etsin.</div>
+  </div>
+
+  <p class="section-title">5 · Loqlama infrastrukturu</p>
+  <div class="card">
+    <h2>AWS CloudWatch Logs</h2>
+    <p>CloudWatch Logs EC2, Lambda, RDS kimi AWS resource-larının sistem və tətbiq loqlarını toplayır. Terraform ilə <strong>log group</strong>-u əvvəlcədən yaratmaq saxlanma müddətinə nəzarət etməyə imkan verir.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_cloudwatch_log_group"</span> <span class="s">"my_log_group"</span> {
+  name = <span class="s">"/aws/lambda/my_lambda_logs"</span>
+  <span class="c"># Loqlar 7 gün saxlanılır, sonra silinir</span>
+  retention_in_days = 7
+}
+
+<span class="k">resource</span> <span class="s">"aws_lambda_function"</span> <span class="s">"my_lambda"</span> {
+  function_name = <span class="s">"MyLambdaFunction"</span>
+  handler       = <span class="s">"lambda_function.lambda_handler"</span>
+  runtime       = <span class="s">"python3.8"</span>
+  filename      = <span class="s">"lambda_function.zip"</span>
+
+  environment {
+    variables = {
+      LOG_GROUP_NAME = aws_cloudwatch_log_group.my_log_group.name
+    }
+  }
+}</code></pre>
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li>Lambda function-un loqlarını toplamaq üçün CloudWatch Logs qurulur.</li>
+      <li>Loqlar 7 gün saxlanılıb silinir — bu, saxlama xərcini nəzarətdə saxlayır.</li>
+    </ul>
+    <div class="warn">Log group-u özün yaratmasan, Lambda ilk işə düşəndə onu <em>avtomatik</em> yaradır və saxlanma müddəti «Never expire» olur. Yəni loqlar əbədi qalır və hər ay hesab artır. Bu, Terraform ilə idarə olunmayan resource-un necə səssizcə pul yediyinə klassik nümunədir.</div>
+    <h3>Saxlanma müddətini necə seçmək</h3>
+    <table>
+      <tr><th>Loq tipi</th><th>Təklif olunan müddət</th><th>Səbəb</th></tr>
+      <tr><td>Debug / dev mühit</td><td>3–7 gün</td><td>Yalnız cari nasazlıq üçün lazımdır</td></tr>
+      <tr><td>Tətbiq loqları (prod)</td><td>30–90 gün</td><td>Nasazlıq təhlili və trend üçün kifayətdir</td></tr>
+      <tr><td>Audit / təhlükəsizlik</td><td>1 il və daha çox</td><td>Compliance tələbləri (14-cü fəsil)</td></tr>
+      <tr><td>Uzunmüddətli arxiv</td><td>S3 Glacier-ə köçür</td><td>CloudWatch-da saxlamaqdan xeyli ucuzdur</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">6 · Monitorinq və loqlama qaydaları</p>
+  <div class="card">
+    <h2>a. Monitorinqi avtomatlaşdır</h2>
+    <p>Monitorinq və loqlamanı Terraform ilə qur. Belədə bütün kritik resurslar istisnasız izlənilir və loqlar hər mühitdə eyni cür toplanır. Əl ilə konsoldan qurulan alarm həmişə unudulan resource-lar buraxır.</p>
+    <h2>b. Kritik hadisələr üçün alarm qoy</h2>
+    <p>CPU, yaddaş, şəbəkə trafiki kimi əsas metric-lər üçün alarm mütləq olsun. Bildirişi çatdırmaq üçün AWS SNS, Azure Monitor Action Group və ya Google Cloud Alerts istifadə et.</p>
+    <div class="tip">Yaxşı meyar: <strong>hər alarm bir hərəkət tələb etməlidir</strong>. Əgər alarm gələndə komandanın edəcəyi bir iş yoxdursa, o alarm deyil — səs-küydür. Onu ya sil, ya da dashboard-a köçür.</div>
+    <h2>c. Loqları mərkəzləşdir</h2>
+    <p>Loqları CloudWatch Logs, Azure Log Analytics və ya Google Cloud Logging kimi platformalarda bir yerə topla. Mərkəzləşdirilmiş loqlama nasazlığı araşdırmağı və sistem performansını təhlil etməyi xeyli asanlaşdırır — on serverə ayrı-ayrılıqda SSH ilə girib fayl oxumaq həll deyil.</p>
+    <h2>d. Metric-i xərcə bağla</h2>
+    <p>Monitorinq özü də pul tutur: xüsusi metric-lər, yüksək tezlikli toplama və uzun saxlanma müddəti hesabı artırır. 16-cı fəsildəki büdcə alarmlarını monitorinq xərcinə də tətbiq et.</p>
+  </div>
+
+  <p class="section-title">7 · Kitab bitdi — bundan sonra nə etməli</p>
+  <div class="card">
+    <h2>Nəyi öyrəndik</h2>
+    <p>Bu kitab boyunca Terraform-un əsaslarından — provider, resource, dəyişən və state-dən — başlayıb modul, CI/CD, multicloud, təhlükəsizlik, xərc idarəçiliyi, Kubernetes və serverless-ə qədər gəldik. Son fəsildə isə qurduğumuzun sağlam işlədiyini necə biləcəyimizi öyrəndik.</p>
+    <p>Üç əsas nəticə:</p>
+    <ul>
+      <li><strong>Infrastructure as Code (IaC)</strong> — Terraform infrastrukturu bir neçə cloud provider-də bəyanedici (declarative) və təkrarlanan şəkildə təsvir etməyə imkan verir.</li>
+      <li><strong>Avtomatlaşdırma</strong> — provisioning, ölçüləndirmə və idarəetmə avtomatlaşdıqca əl işi və insan səhvi azalır.</li>
+      <li><strong>Yaxşı təcrübələr</strong> — modul, remote state və versiya nəzarəti infrastrukturu genişlənən, davamlı və təhlükəsiz saxlayır.</li>
+    </ul>
+    <h2>İndi nə etməli</h2>
+    <ol>
+      <li><strong>Kiçik bir gerçək layihə seç.</strong> Öyrənməyin ən sürətli yolu — mövcud əl ilə qurulmuş bir mühiti Terraform-a köçürmək. <code>terraform import</code> ilə başla.</li>
+      <li><strong>State-i ilk gündən remote backend-ə qoy.</strong> Lokal <code>terraform.tfstate</code> ilə işləmək vərdişi sonra bahalı düzəlir.</li>
+      <li><strong>Öz modul kitabxananı qur.</strong> Şirkətində təkrarlanan üç-dörd nümunəni (VPC, RDS, Lambda, EKS node group) modul kimi yaz və versiyala.</li>
+      <li><strong>CI-a qoş.</strong> <code>fmt</code>, <code>validate</code>, <code>plan</code> hər merge request-də avtomatik işləsin; <code>apply</code> isə yalnız təsdiqlə.</li>
+      <li><strong>Policy və təhlükəsizlik yoxlamaları əlavə et.</strong> <code>tfsec</code>, <code>checkov</code> və ya OPA/Sentinel pipeline-a qoşulanda səhv konfiqurasiya prod-a çatmır.</li>
+      <li><strong>Sənədləşdir.</strong> <code>terraform-docs</code> ilə modul sənədini avtomatik yarat — komandaya qoşulan yeni adam üçün ən dəyərli şeydir.</li>
+    </ol>
+    <div class="tip">Terraform sürətlə dəyişir. Provider CHANGELOG-larını izlə, versiyaları <code>required_providers</code>-də sabitlə və yeniləməni planlı şəkildə et — bir gün «hər şey işləyirdi, indi plan 40 dəyişiklik göstərir» vəziyyətinə düşməmək üçün.</div>
+  </div>
+
+  <p class="section-title">8 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li><strong>Monitorinq resource-u izlədiyi resource ilə eyni modulda yaşasın</strong> — belədə heç bir servis alarmsız qalmır.</li>
+      <li><strong>Alarm həddi + <code>evaluation_periods</code> birlikdə düşünülür.</strong> Tək dövrlük hədd yalançı xəbərdarlıq yaradır, komanda isə bildirişlərə baxmağı dayandırır.</li>
+      <li><strong>Bildiriş kanalını yoxla.</strong> SNS e-poçt abunəliyi təsdiqlənməyibsə, alarm işə düşür, amma heç kimə çatmır.</li>
+      <li><strong>Log group-u özün yarat və <code>retention_in_days</code> qoy</strong> — əks halda loqlar əbədi saxlanılır və hesab durmadan artır.</li>
+      <li><strong>Loqları mərkəzləşdir, alarmı hərəkətə bağla.</strong> Cavab tələb etməyən bildiriş monitorinq deyil, səs-küydür.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="19-serverless.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Serverless — Lambda və Azure Functions</div></a>
+    <a href="index.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Mündəricat</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

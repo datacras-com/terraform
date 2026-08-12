@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modullar və Workspace-lər · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 5</div>
+  <h1>Modullar və Workspace-lər</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">
+    Konfiqurasiya böyüdükcə eyni kodu təkrar-təkrar yazmaq dözülməz olur. <strong>Modul</strong> — bir neçə resursu tək, təkrar işlədilə bilən vahid halında paketləməyin yoludur.
+    <strong>Workspace</strong> isə eyni konfiqurasiya ilə bir neçə mühiti (dev, staging, prod) idarə etməyə imkan verir: hər workspace-in öz state faylı olur.
+    Bu fəsildə modul yazmağı, çağırmağı, uzaq modullardan istifadə etməyi və workspace-lərin güclü/zəif tərəflərini öyrənəcəyik.
+  </div>
+
+  <p class="section-title">1 · Modul nədir</p>
+  <div class="card">
+    <h2>Modul — resursların qabı</h2>
+    <p>
+      Terraform-da modul birlikdə işlədilən bir neçə resursun qabıdır (container).
+      Modul infrastruktur kodunu elə paketləyir ki, onu layihələr və mühitlər arasında asanlıqla təkrar işlətmək, saxlamaq və paylaşmaq mümkün olsun.
+    </p>
+    <table>
+      <tr><th>Fayda</th><th>İzah</th></tr>
+      <tr><td>Təkrar istifadə</td><td>Bir dəfə yazılan modul fərqli layihə və mühitlərdə yenidən işlədilir</td></tr>
+      <tr><td>Abstraksiya</td><td>Mürəkkəb detallar modulun içində gizlənir, istifadəçi sadəcə bir neçə dəyişən ötürür</td></tr>
+      <tr><td>Saxlanıla bilənlik</td><td>Böyük layihə məntiqi hissələrə bölünür, dəyişiklik yeri asan tapılır</td></tr>
+      <tr><td>Ardıcıllıq</td><td>İnfrastruktur bütün mühitlərdə eyni qaydada qurulur</td></tr>
+    </table>
+    <div class="note">
+      Terraform-da <strong>hər konfiqurasiya artıq bir moduldur</strong>. İşlədiyiniz qovluqdakı konfiqurasiya <strong>root modul</strong> adlanır və başqa modulları məhz oradan çağırırsınız.
+    </div>
+  </div>
+
+  <p class="section-title">2 · Modulun yazılması</p>
+  <div class="card">
+    <h2>Modulun tərkib hissələri</h2>
+    <ul>
+      <li><strong>main.tf</strong> — modulun idarə etdiyi resurslar.</li>
+      <li><strong>variables.tf</strong> — modulun qəbul etdiyi giriş dəyişənləri.</li>
+      <li><strong>outputs.tf</strong> — modulun çağıran konfiqurasiyaya qaytardığı dəyərlər.</li>
+    </ul>
+
+    <h3>Addım 1 — qovluq quruluşu</h3>
+<pre><code>/modules
+  /ec2
+    main.tf
+    variables.tf
+    outputs.tf</code></pre>
+
+    <h3>Addım 2 — main.tf (resurslar)</h3>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = var.ami
+  instance_type = var.instance_type
+
+  tags = {
+    Name = var.instance_name
+  }
+}</code></pre>
+    <p>Burada EC2 instance dəyişənlər vasitəsilə ötürülən AMI, instance tipi və ad ilə yaradılır — modulun içində sabit dəyər yoxdur.</p>
+
+    <h3>Addım 3 — variables.tf (girişlər)</h3>
+<pre><code><span class="k">variable</span> <span class="s">"ami"</span> {
+  description = <span class="s">"EC2 instance üçün istifadə olunacaq AMI"</span>
+}
+
+<span class="k">variable</span> <span class="s">"instance_type"</span> {
+  description = <span class="s">"İstifadə olunacaq instance tipi"</span>
+  default     = <span class="s">"t2.micro"</span>
+}
+
+<span class="k">variable</span> <span class="s">"instance_name"</span> {
+  description = <span class="s">"EC2 instance-a veriləcək ad"</span>
+  default     = <span class="s">"example-instance"</span>
+}</code></pre>
+    <p>Üç dəyişən təyin edildi: <code>ami</code>, <code>instance_type</code>, <code>instance_name</code>. Onları modulu çağıran konfiqurasiya ötürür.</p>
+
+    <h3>Addım 4 — outputs.tf (çıxışlar)</h3>
+<pre><code><span class="k">output</span> <span class="s">"instance_id"</span> {
+  value = aws_instance.my_instance.id
+}
+
+<span class="k">output</span> <span class="s">"instance_public_ip"</span> {
+  value = aws_instance.my_instance.public_ip
+}</code></pre>
+    <p>Output-lar modulun yaratdığı EC2 instance-ın ID-sini və public IP-sini çölə açır — çağıran konfiqurasiya bu dəyərlərdən istifadə edə bilər.</p>
+
+    <div class="tip">
+      Modulun içində <code>provider</code> bloku təyin etməyin — provider konfiqurasiyası root moduldan gəlməlidir.
+      Əks halda modulu fərqli region və ya account üçün təkrar işlətmək çətinləşir.
+    </div>
+  </div>
+
+  <p class="section-title">3 · Modulun çağırılması</p>
+  <div class="card">
+    <h2>Root moduldan istifadə</h2>
+    <p>Modul hazır olduqdan sonra onu iş qovluğundakı əsas konfiqurasiyadan çağırırıq:</p>
+<pre><code><span class="k">module</span> <span class="s">"my_ec2"</span> {
+  source        = <span class="s">"./modules/ec2"</span>
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+  instance_name = <span class="s">"my-terraform-instance"</span>
+}</code></pre>
+    <ul>
+      <li><strong>source</strong> — modulun yeri. Burada yerli yol göstərilib: <code>./modules/ec2</code>.</li>
+      <li><strong>ami</strong>, <strong>instance_type</strong>, <strong>instance_name</strong> — modulun tələb etdiyi giriş dəyişənləri.</li>
+    </ul>
+    <p>
+      <code>terraform apply</code> icra ediləndə Terraform bu modulu işlədib göstərilən AMI, tip və adla EC2 instance yaradacaq.
+      Modulun output-una isə belə müraciət olunur: <code>module.my_ec2.instance_public_ip</code>.
+    </p>
+    <div class="warn">
+      Yeni modul əlavə edəndə və ya <code>source</code> dəyişəndə mütləq <code>terraform init</code> işə salın — Terraform modulu yükləməlidir.
+      Əks halda "module not installed" xətası alacaqsınız.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Uzaq (remote) modullar</h2>
+    <p>
+      Yerli modullardan başqa Terraform GitHub kimi versiya nəzarəti sistemlərində və ya Terraform Registry-də yerləşən uzaq modulları da işlədə bilir.
+      Bu, modulları komandalar və layihələr arasında paylaşmağı asanlaşdırır.
+    </p>
+<pre><code><span class="k">module</span> <span class="s">"vpc"</span> {
+  source  = <span class="s">"github.com/terraform-aws-modules/terraform-aws-vpc"</span>
+  version = <span class="s">"2.0.0"</span>
+
+  cidr = <span class="s">"10.0.0.0/16"</span>
+  azs  = [<span class="s">"us-west-1a"</span>, <span class="s">"us-west-1b"</span>]
+}</code></pre>
+    <ul>
+      <li><strong>source</strong> modulu saxlayan repozitoriyaya işarə edir.</li>
+      <li><strong>version</strong> hansı versiyanın işlədiləcəyini təyin edir.</li>
+      <li>Modul <code>cidr</code>, <code>azs</code> kimi girişləri qəbul edərək VPC konfiqurasiyasını qurur.</li>
+    </ul>
+    <div class="warn">
+      Uzaq modulda <strong>versiyanı həmişə sabitləyin</strong>. Versiya göstərilməsə, modulun müəllifi dəyişiklik edən kimi sizin <code>plan</code> gözlənilmədən başqa nəticə verə bilər.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Modul üçün yaxşı təcrübələr</h2>
+    <ol>
+      <li><strong>Təkrar işlədilən hissələri modula çevirin:</strong> VPC, EC2, verilənlər bazası kimi bloklar üçün ayrı modullar yaradın.</li>
+      <li><strong>Versiyalayın:</strong> versiya nəzarətindən və ya Registry-dən gələn modullarda həmişə versiya göstərin ki, uyğunsuz dəyişiklik sizi vurmasın.</li>
+      <li><strong>Layihəni bölün:</strong> şəbəkə üçün bir modul, hesablama resursları üçün başqa, monitorinq üçün üçüncü — belə struktur saxlamağı asanlaşdırır.</li>
+      <li><strong>Sənədləşdirin:</strong> hər modulun giriş, çıxış və məqsədini aydın yazın ki, komanda üzvləri onu düzgün işlətsin.</li>
+    </ol>
+    <div class="tip">
+      Modulu çox "ağıllı" etməyin. Yaxşı modul dar bir işi yaxşı görür və az sayda aydın giriş qəbul edir; onlarla şərtlə dolu nəhəng modul saxlanılması ən çətin koda çevrilir.
+    </div>
+  </div>
+
+  <p class="section-title">4 · Workspace-lər</p>
+  <div class="card">
+    <h2>Workspace nədir</h2>
+    <p>
+      Terraform workspace-ləri eyni konfiqurasiya ilə bir neçə mühiti — dev, staging, prod — idarə etməyə imkan verir.
+      Hər workspace-in <strong>öz ayrıca state faylı</strong> olur, buna görə bir workspace-dəki dəyişiklik digərindəki resurslara toxunmur.
+    </p>
+    <p>Susmaya görə Terraform <code>default</code> adlı tək workspace-də işləyir, lakin əlavə workspace-lər yaratmaq olar.</p>
+    <h3>Workspace nə vaxt faydalıdır</h3>
+    <ul>
+      <li>Konfiqurasiya kodunu təkrarlamadan ayrı mühitlər saxlamaq istəyəndə.</li>
+      <li>Test və ya QA üçün infrastrukturun izolyasiya olunmuş nüsxəsini qurmaq lazım gələndə.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Workspace-lərin yaradılması və idarəsi</h2>
+    <h3>Addım 1 — yeni workspace</h3>
+<pre><code>terraform workspace new dev</code></pre>
+    <p><code>dev</code> adlı yeni workspace yaranır və Terraform onun üçün avtomatik ayrıca state faylı hazırlayır.</p>
+
+    <h3>Addım 2 — mövcud workspace-ə keçmək</h3>
+<pre><code>terraform workspace select dev</code></pre>
+    <p>Bu əmr Terraform-u <code>dev</code> workspace-inə keçirir. Burada yaradılan və ya dəyişdirilən resurslar digər workspace-lərdən təcrid olunur.</p>
+
+    <h3>Addım 3 — workspace siyahısı</h3>
+<pre><code>terraform workspace list
+
+<span class="c"># nəticə:</span>
+<span class="g">* default</span>
+  dev
+  prod</code></pre>
+    <p><code>*</code> işarəsi hazırda aktiv olan workspace-i göstərir. Cari workspace-i <code>terraform workspace show</code> ilə də görmək olar.</p>
+    <div class="note">
+      Workspace-lərin adları state-in yolunda əks olunur. Məsələn, S3 backend-də <code>dev</code> workspace-inin state faylı
+      <code>env:/dev/&lt;key&gt;</code> yolunda saxlanılır — <code>default</code> isə birbaşa <code>&lt;key&gt;</code> yolunda qalır.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Konfiqurasiyada workspace-dən istifadə</h2>
+    <p>
+      Aktiv workspace-in adına konfiqurasiya daxilində <code>terraform.workspace</code> dəyişəni ilə müraciət olunur.
+      Bu, resurs adlarını və teq-ləri mühitə görə fərqləndirmək üçün əlverişlidir.
+    </p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  tags = {
+    <span class="c"># ad workspace adı ilə tamamlanır</span>
+    Name = <span class="s">"my-instance-${terraform.workspace}"</span>
+  }
+}</code></pre>
+    <p>Nəticədə instance-ın adı workspace adı ilə bitəcək: <code>my-instance-dev</code>, <code>my-instance-prod</code> və s.</p>
+    <div class="tip">
+      Eyni üsulla ölçüləri də mühitə görə seçmək olar, məsələn map ilə:
+      <code>local.instance_size[terraform.workspace]</code> — belə yanaşma <code>if</code> zəncirlərindən daha oxunaqlıdır.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Bir neçə mühitin idarəsi</h2>
+    <p>Workspace-lər kodu təkrarlamadan dev, staging və prod mühitlərini saxlamaq üçün əlverişlidir. Nümunə iş axını:</p>
+<pre><code><span class="c"># 1) hər mühit üçün workspace yaradırıq</span>
+terraform workspace new dev
+terraform workspace new staging
+terraform workspace new prod
+
+<span class="c"># 2) hər mühitə resursları yerləşdiririk</span>
+terraform workspace select dev
+terraform apply        <span class="c"># dev mühitinə tətbiq</span>
+
+terraform workspace select staging
+terraform apply        <span class="c"># staging mühitinə tətbiq</span></code></pre>
+    <p>Beləliklə hər mühit üçün ayrıca konfiqurasiya yazmağa ehtiyac qalmır, state isə tam təcrid olunmuş qalır.</p>
+    <div class="warn">
+      <strong>Ən çox rast gəlinən səhv:</strong> yanlış workspace-də <code>apply</code> etmək. Prod-a toxunmadan əvvəl həmişə
+      <code>terraform workspace show</code> ilə harada olduğunuzu yoxlayın, plan çıxışını isə diqqətlə oxuyun.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Workspace-lərin məhdudiyyətləri</h2>
+    <ul>
+      <li><strong>Yalnız state-i ayırır:</strong> workspace konfiqurasiyanı deyil, sadəcə state-i təcrid edir. Dev və prod üçün fərqli AMI ID-si lazımdırsa, bu məntiqi dəyişənlərlə həll etməlisiniz.</li>
+      <li><strong>Hər hal üçün uyğun deyil:</strong> mühitlər arasında çoxlu fərq olan iri layihələrdə workspace-lər konfiqurasiyanı mürəkkəbləşdirir. Belə hallarda hər mühit üçün ayrı Terraform layihəsi (ayrı qovluq və backend key) daha düzgündür.</li>
+    </ul>
+    <table>
+      <tr><th>Meyar</th><th>Workspace-lər</th><th>Ayrı qovluq / ayrı layihə</th></tr>
+      <tr><td>Kod təkrarı</td><td>Yoxdur — eyni kod</td><td>Var, amma modullarla azalır</td></tr>
+      <tr><td>Mühitlər arası fərq</td><td>Yalnız dəyişənlərlə</td><td>Sərbəst — hər mühit istədiyi kimi</td></tr>
+      <tr><td>Səhvən prod-a apply riski</td><td>Yüksək (eyni qovluq)</td><td>Aşağı (fiziki ayrılıq)</td></tr>
+      <tr><td>Giriş hüquqlarının ayrılması</td><td>Çətin</td><td>Asan — fərqli backend, fərqli hüquq</td></tr>
+      <tr><td>Uyğun ssenari</td><td>Qısamüddətli test/QA nüsxələri</td><td>Uzunömürlü dev/staging/prod</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">5 · Yekun</p>
+  <div class="card">
+    <h2>Yadda saxla</h2>
+    <ul>
+      <li><strong>Hər konfiqurasiya moduldur:</strong> iş qovluğunuz root moduldur, digər modulları oradan çağırırsınız.</li>
+      <li><strong>Modul üç fayldan ibarətdir:</strong> <code>main.tf</code> (resurslar), <code>variables.tf</code> (girişlər), <code>outputs.tf</code> (çıxışlar) — sabit dəyərləri modulun içinə yazmayın.</li>
+      <li><strong>Uzaq modulda versiyanı sabitləyin:</strong> <code>version</code> göstərilməsə, kənar dəyişiklik sizin plan-ı gözlənilmədən dəyişə bilər.</li>
+      <li><strong>Workspace state-i ayırır, konfiqurasiyanı yox:</strong> mühitlər arası fərqləri dəyişənlərlə idarə edin, <code>terraform.workspace</code> ilə adlandırın.</li>
+      <li><strong>Prod ciddi ayrılıq tələb edir:</strong> mühitlər bir-birindən çox fərqlənəndə və ya giriş hüquqları ayrılmalıdırsa, workspace əvəzinə ayrı layihə və ayrı backend seçin.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="04-state-backend.html"><div class="lbl">← Əvvəlki</div><div class="ttl">State İdarəsi və Backend-lər</div></a>
+    <a href="06-sert-dovr-dinamik.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Şərtlər, Dövrlər və Dinamik Bloklar</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

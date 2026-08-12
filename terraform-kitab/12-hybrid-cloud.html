@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hibrid Cloud · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 12</div>
+  <h1>Hibrid Cloud</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Əksər təşkilat buluda bir gecədə keçmir — köhnə sistemlər öz serverlərində qalır, yeni tətbiqlər isə buludda qurulur. Hibrid cloud məhz bu iki dünyanın birgə yaşamasıdır. Bu fəsildə on-prem şəbəkənin AWS-ə Site-to-Site VPN, Azure-a isə ExpressRoute vasitəsilə uzadılmasını, vSphere kimi on-prem provider-lərlə işi və hibrid mühit üçün əməli qaydaları öyrənəcəyik.</div>
+
+  <p class="section-title">1 · Hibrid cloud nədir və nə üçün seçilir</p>
+  <div class="card">
+    <h2>Tərif</h2>
+    <p>Hibrid cloud öz data mərkəzinizin, private cloud-un və public cloud-un (AWS, Azure, Google Cloud) birgə istifadəsidir. Təşkilatlar bu memarlığa üç səbəbdən üstünlük verir:</p>
+    <ul>
+      <li><strong>Nəzarəti saxlamaq</strong> — həssas data və ya tənzimləyici tələblər bəzi iş yüklərinin fiziki olaraq öz data mərkəzinizdə qalmasını tələb edir. Bank, tibb və dövlət sektorunda bu, seçim deyil, öhdəlikdir.</li>
+      <li><strong>Bulud resurslarından yararlanmaq</strong> — dinamik miqyaslanma tələb edən iş yükləri (müştəriyə baxan tətbiqlər, kampaniya dövrünün pik yükü, qısamüddətli hesablama işləri) buludda daha ucuz və çevik işləyir.</li>
+      <li><strong>Xərcə nəzarət</strong> — artıq alınmış on-prem avadanlıq amortizasiya olunana qədər əsas sistemləri saxlayır, kritik olmayan yükləri isə buluda köçürürsünüz.</li>
+    </ul>
+    <p>Belə mühiti idarə etmək mürəkkəbdir, lakin Terraform hər iki tərəf üçün vahid infrastructure-as-code yanaşması təklif edərək bu mürəkkəbliyi bir dilə yığır.</p>
+  </div>
+
+  <p class="section-title">2 · Açar anlayışlar</p>
+  <div class="card">
+    <h2>a. On-prem şəbəkənin buluda uzadılması</h2>
+    <p>Hibrid quruluşun əsas məqsədi mövcud şəbəkəni buluda uzatmaqdır — yəni bulud VPC-si sanki sizin data mərkəzinizin daha bir subnet-i kimi davransın. Bu, VPN və ya Direct Connect / ExpressRoute kimi xüsusi xətlərlə həyata keçirilir.</p>
+    <h2>b. Vahid idarəetmə</h2>
+    <p>Terraform həm bulud, həm on-prem resursları üçün eyni konfiqurasiya dilini işlədir. Nəticədə bütün infrastruktura tək pəncərədən baxa, dəyişiklikləri eyni review və CI axınından keçirə bilirsiniz.</p>
+    <h2>c. Multi-cloud inteqrasiyası</h2>
+    <p>Hibrid quruluşlarda tez-tez birdən çox bulud iştirak edir — məsələn hesablama gücü AWS-də, verilənlər bazası xidmətləri Azure-da. Terraform-un çoxlu provider dəstəyi bunları bir konfiqurasiyada birləşdirməyə imkan verir.</p>
+
+    <table>
+      <tr><th>Komponent</th><th>Rolu</th><th>Nümunə</th></tr>
+      <tr><td>On-prem data mərkəzi</td><td>Köhnə tətbiqlər, ciddi təhlükəsizlik tələbi olan sistemlər</td><td>VMware vSphere, bare metal</td></tr>
+      <tr><td>Public cloud</td><td>Miqyaslanan iş yükləri, bulud-nativ xidmətlər</td><td>AWS VPC, Azure VNet</td></tr>
+      <tr><td>Şəbəkə inteqrasiyası</td><td>İki mühitin şəbəkə səviyyəsində birləşməsi</td><td>Site-to-Site VPN, Direct Connect, ExpressRoute</td></tr>
+      <tr><td>Identity</td><td>Vahid autentifikasiya</td><td>Active Directory + IAM federation</td></tr>
+      <tr><td>Monitorinq</td><td>Hər iki tərəfin vahid müşahidəsi</td><td>Prometheus, CloudWatch, Azure Monitor</td></tr>
+    </table>
+    <div class="note">VPN internet üzərindən şifrələnmiş tunel qurur — ucuzdur və dəqiqələr ərzində qalxır, lakin gecikmə internetdən asılıdır. Direct Connect və ExpressRoute isə fiziki ayrılmış xətdir: sabit gecikmə və yüksək buraxma qabiliyyəti verir, amma provider ilə müqavilə və həftələrlə qurulma müddəti tələb edir.</div>
+  </div>
+
+  <p class="section-title">3 · On-prem şəbəkəni AWS-ə uzatmaq</p>
+  <div class="card">
+    <p>Bu nümunədə mövcud on-prem şəbəkəni AWS Site-to-Site VPN vasitəsilə AWS VPC-yə bağlayırıq. Başlanğıc fərziyyəsi: on-prem tərəfdə <code>192.168.1.0/24</code> private subnet-i və ictimai IP-yə malik VPN gateway var.</p>
+
+    <h3>Addım 1 — Provider</h3>
+    <pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-west-2"</span>
+}</code></pre>
+
+    <h3>Addım 2 — VPC və subnet</h3>
+    <pre><code><span class="k">resource</span> <span class="s">"aws_vpc"</span> <span class="s">"my_vpc"</span> {
+  cidr_block = <span class="s">"10.0.0.0/16"</span>
+
+  tags = {
+    Name = <span class="s">"HybridCloudVPC"</span>
+  }
+}
+
+<span class="k">resource</span> <span class="s">"aws_subnet"</span> <span class="s">"my_subnet"</span> {
+  vpc_id            = aws_vpc.my_vpc.id
+  cidr_block        = <span class="s">"10.0.1.0/24"</span>
+  availability_zone = <span class="s">"us-west-2a"</span>
+}</code></pre>
+    <p>Burada <code>10.0.0.0/16</code> CIDR bloku ilə VPC və onun daxilində iş yükləri üçün subnet yaradılır.</p>
+    <div class="warn">Hibrid quruluşda ən vacib planlaşdırma qərarı CIDR seçimidir. On-prem şəbəkə ilə VPC-nin ünvan aralıqları <strong>üst-üstə düşməməlidir</strong> — üst-üstə düşən diapazonlarda routing qeyri-mümkün olur və problemi sonradan həll etməyin yeganə yolu VPC-ni yenidən qurmaqdır. Layihəyə başlamazdan əvvəl şirkət miqyasında ünvan planı hazırlayın.</div>
+
+    <h3>Addım 3 — Virtual Private Gateway</h3>
+    <pre><code><span class="k">resource</span> <span class="s">"aws_vpn_gateway"</span> <span class="s">"my_vgw"</span> {
+  vpc_id = aws_vpc.my_vpc.id
+}</code></pre>
+    <p>Virtual Private Gateway (VGW) yaradılır və VPC-yə qoşulur — bu, VPN-in AWS tərəfdəki bağlantı nöqtəsidir.</p>
+
+    <h3>Addım 4 — Customer Gateway və VPN bağlantısı</h3>
+    <pre><code><span class="k">resource</span> <span class="s">"aws_customer_gateway"</span> <span class="s">"on_prem_gateway"</span> {
+  bgp_asn    = 65000
+  ip_address = <span class="s">"1.2.3.4"</span>   <span class="c"># on-prem gateway-in ictimai IP-si</span>
+  type       = <span class="s">"ipsec.1"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_vpn_connection"</span> <span class="s">"vpn_conn"</span> {
+  vpn_gateway_id      = aws_vpn_gateway.my_vgw.id
+  customer_gateway_id = aws_customer_gateway.on_prem_gateway.id
+  type                = <span class="s">"ipsec.1"</span>
+  static_routes_only  = <span class="k">true</span>
+
+  tags = {
+    Name = <span class="s">"OnPremToAWS-VPN"</span>
+  }
+}
+
+<span class="k">resource</span> <span class="s">"aws_vpn_connection_route"</span> <span class="s">"route"</span> {
+  vpn_connection_id      = aws_vpn_connection.vpn_conn.id
+  destination_cidr_block = <span class="s">"192.168.1.0/24"</span>  <span class="c"># on-prem CIDR bloku</span>
+}</code></pre>
+    <p>Bu konfiqurasiyada üç şey baş verir: <strong>Customer Gateway</strong> on-prem tərəfdəki VPN cihazını ictimai IP və ASN ilə təsvir edir; <strong>VPN Connection</strong> AWS VPC ilə on-prem şəbəkə arasında IPsec tunelini qurur; <strong>VPN Connection Route</strong> isə on-prem CIDR blokuna gedən trafikin tuneldən keçməsini təmin edir.</p>
+    <div class="tip">Terraform tunelin AWS tərəfini qurur, lakin on-prem cihazın (Cisco, Fortinet, pfSense) konfiqurasiyasını yox. AWS konsolundan və ya <code>aws ec2 describe-vpn-connections</code> ilə hazır konfiqurasiya faylını yükləyib şəbəkə komandasına verin. Tunel yalnız hər iki tərəf qurulandan sonra <code>UP</code> vəziyyətinə keçir.</div>
+    <div class="note"><code>static_routes_only = true</code> sadə quruluşlar üçün uyğundur. Şəbəkə tez-tez dəyişirsə və ya birdən çox filial varsa, BGP dinamik marşrutlaşdırma daha yaxşıdır — bu halda <code>static_routes_only</code>-ni <code>false</code> qoyub <code>bgp_asn</code> ilə işləyin.</div>
+  </div>
+
+  <p class="section-title">4 · On-prem şəbəkəni Azure-a ExpressRoute ilə uzatmaq</p>
+  <div class="card">
+    <p>ExpressRoute on-prem şəbəkə ilə Azure data mərkəzləri arasında internetdən keçməyən özəl bağlantı yaradır. Sabit gecikmə və yüksək buraxma qabiliyyəti tələb olunan hallarda seçilir.</p>
+
+    <h3>Addım 1 — Provider və virtual şəbəkə</h3>
+    <pre><code><span class="k">provider</span> <span class="s">"azurerm"</span> {
+  features {}
+}
+
+<span class="k">resource</span> <span class="s">"azurerm_virtual_network"</span> <span class="s">"my_vnet"</span> {
+  name                = <span class="s">"my-vnet"</span>
+  address_space       = [<span class="s">"10.1.0.0/16"</span>]
+  location            = <span class="s">"West US"</span>
+  resource_group_name = azurerm_resource_group.my_rg.name
+}</code></pre>
+
+    <h3>Addım 2 — ExpressRoute circuit</h3>
+    <pre><code><span class="k">resource</span> <span class="s">"azurerm_express_route_circuit"</span> <span class="s">"my_circuit"</span> {
+  name                  = <span class="s">"my-expressroute-circuit"</span>
+  location              = <span class="s">"West US"</span>
+  resource_group_name   = azurerm_resource_group.my_rg.name
+  service_provider_name = <span class="s">"Equinix"</span>          <span class="c"># bağlantı provayderi</span>
+  peering_location      = <span class="s">"Silicon Valley"</span>   <span class="c"># fiziki qoşulma nöqtəsi</span>
+  bandwidth_in_mbps     = 1000                <span class="c"># 1 Gbps</span>
+
+  sku {
+    tier   = <span class="s">"Standard"</span>
+    family = <span class="s">"MeteredData"</span>              <span class="c"># ödəniş həcmə görə</span>
+  }
+}</code></pre>
+    <p>Burada Equinix kimi bir xidmət provayderi üzərindən 1 Gbps buraxma qabiliyyətli circuit yaradılır və ödəniş modeli olaraq həcmə görə hesablama (MeteredData) seçilir.</p>
+
+    <h3>Addım 3 — Virtual Network Gateway</h3>
+    <pre><code><span class="k">resource</span> <span class="s">"azurerm_virtual_network_gateway"</span> <span class="s">"vpn_gateway"</span> {
+  name                = <span class="s">"vpn-gateway"</span>
+  location            = <span class="s">"West US"</span>
+  resource_group_name = azurerm_resource_group.my_rg.name
+  type                = <span class="s">"ExpressRoute"</span>
+  vpn_type            = <span class="s">"RouteBased"</span>
+  sku                 = <span class="s">"Standard"</span>
+
+  ip_configuration {
+    name                 = <span class="s">"gw-ipconfig"</span>
+    public_ip_address_id = azurerm_public_ip.gw_ip.id
+    subnet_id            = azurerm_subnet.gateway_subnet.id
+  }
+}</code></pre>
+    <p>Bu gateway Azure tərəfdə ExpressRoute bağlantısını qəbul edir. Diqqət: Azure gateway-i mütləq adı <code>GatewaySubnet</code> olan xüsusi subnet-də yerləşməlidir.</p>
+    <div class="warn">ExpressRoute circuit-i Terraform yaradır, amma o dərhal işə düşmür: fiziki qoşulmanı xidmət provayderi (Equinix, Megaport və s.) tamamlamalıdır. <code>apply</code>-dan sonra circuit <code>NotProvisioned</code> vəziyyətində qalır — bu, xəta deyil, gözlənilən haldır. Gateway resursunun yaradılması isə tək başına 30–45 dəqiqə çəkə bilər, buna görə CI timeout dəyərlərini artırın.</div>
+  </div>
+
+  <p class="section-title">5 · On-prem resursların Terraform ilə idarəsi</p>
+  <div class="card">
+    <p>Terraform yalnız bulud üçün deyil: VMware vSphere, OpenStack, Nutanix və Kubernetes üçün də provider-lər mövcuddur. Bunlar sayəsində on-prem virtual maşınları, saxlama və şəbəkə resurslarını bulud resursları ilə eyni üslubda təsvir edə bilirsiniz.</p>
+    <pre><code><span class="k">provider</span> <span class="s">"vsphere"</span> {
+  vsphere_server       = <span class="s">"vsphere.local"</span>
+  user                 = var.vsphere_user
+  password             = var.vsphere_password
+  allow_unverified_ssl = <span class="k">true</span>   <span class="c"># yalnız laboratoriya üçün</span>
+}
+
+<span class="k">resource</span> <span class="s">"vsphere_virtual_machine"</span> <span class="s">"vm"</span> {
+  name             = <span class="s">"terraform-vm"</span>
+  resource_pool_id = data.vsphere_resource_pool.pool.id
+  datastore_id     = data.vsphere_datastore.datastore.id
+
+  num_cpus = 2
+  memory   = 4096
+  guest_id = <span class="s">"rhel7_64Guest"</span>
+
+  network_interface {
+    network_id   = data.vsphere_network.network.id
+    adapter_type = <span class="s">"vmxnet3"</span>
+  }
+
+  disk {
+    label            = <span class="s">"disk0"</span>
+    size             = 40
+    thin_provisioned = <span class="k">true</span>
+  }
+}</code></pre>
+    <p>Bu nümunədə Terraform vSphere virtual maşınını — CPU, yaddaş, disk və şəbəkə interfeysi ilə birlikdə — idarə edir. Həmin maşın sonra bulud resurslarına bağlanaraq daha geniş hibrid strategiyanın bir hissəsinə çevrilir.</p>
+    <div class="warn"><code>allow_unverified_ssl = true</code> sertifikat yoxlamasını tamamilə söndürür və man-in-the-middle hücumuna qapı açır. Yalnız test laboratoriyasında işlədin; işlək mühitdə vCenter-ə düzgün sertifikat quraşdırın və bu parametri <code>false</code> saxlayın.</div>
+    <div class="tip">On-prem provider-lər bulud API-lərindən daha ləng cavab verir və şəbəkə əlçatanlığı tələb edir. Bu səbəbdən Terraform-un on-prem hissəsini bulud hissəsindən ayrı state-də saxlamaq (və gərəkdikdə <code>terraform_remote_state</code> ilə əlaqələndirmək) plan vaxtını və nasazlıq təsirini azaldır.</div>
+  </div>
+
+  <p class="section-title">6 · Əməli qaydalar</p>
+  <div class="card">
+    <h2>a. Mərkəzləşdirilmiş loglama və monitorinq</h2>
+    <p>On-prem və bulud resurslarının logları eyni yerdə toplanmalıdır. CloudWatch, Azure Monitor və Prometheus hər iki mühitdən metrika və log qəbul edə bilir. İki ayrı panel arasında keçid etmək araşdırma vaxtını xeyli uzadır.</p>
+
+    <h2>b. Ardıcıl teq və adlandırma</h2>
+    <p>Eyni adlandırma konvensiyasını hər iki tərəfdə tətbiq edin. Bu, resursların izlənməsini, xərc hesabatını və avtomatlaşdırmanı asanlaşdırır — <code>env-app-role-nn</code> kimi sadə bir şablon uzun müddət işləyir.</p>
+
+    <h2>c. Təhlükəsiz şəbəkə bağlantısı</h2>
+    <p>On-prem ilə bulud arasındakı VPN və ya özəl xətlər şifrələnmiş olmalı, hər iki tərəfdə firewall qaydaları ilə məhdudlaşdırılmalıdır. Tunel qurulduqdan sonra "hər şey hər şeyə çıxa bilsin" qaydası qoymaq hibrid quruluşlarda ən çox rast gəlinən təhlükəsizlik səhvidir — yalnız lazım olan port və subnet-lərə icazə verin.</p>
+
+    <div class="ai">AI ilə iş: hibrid şəbəkə konfiqurasiyası istəyəndə CIDR bloklarını, ASN-i və provider versiyasını prompt-da açıq göstərin. Model şəbəkə topologiyasını görmədiyi üçün üst-üstə düşən CIDR-lər və ya mövcud olmayan arqumentlər təklif edə bilir. Yaradılan konfiqurasiyanı əvvəlcə <code>terraform validate</code>, sonra izolyasiya olunmuş test hesabında <code>plan</code> ilə yoxlayın — səhv VPN routing-i bütün ofis şəbəkəsini kəsə bilər.</div>
+  </div>
+
+  <p class="section-title">7 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>Hibrid cloud on-prem nəzarəti ilə buludun çevikliyini birləşdirir; Terraform hər iki tərəf üçün vahid konfiqurasiya dili verir.</li>
+      <li>AWS tərəfdə bağlantı üç resursdan qurulur: <code>aws_vpn_gateway</code>, <code>aws_customer_gateway</code> və <code>aws_vpn_connection</code>; marşrut isə ayrıca təyin olunur.</li>
+      <li>Azure-da ExpressRoute circuit-i Terraform yaradır, lakin fiziki qoşulmanı xidmət provayderi tamamlayır — circuit bir müddət <code>NotProvisioned</code> qalır.</li>
+      <li>CIDR blokları on-prem ilə üst-üstə düşməməlidir; bu səhvin sonradan düzəldilməsi VPC-nin yenidən qurulması deməkdir.</li>
+      <li>vSphere, OpenStack və Kubernetes provider-ləri on-prem resursları da eyni HCL sintaksisi ilə idarə etməyə imkan verir.</li>
+      <li>Vahid monitorinq, ardıcıl adlandırma və dar icazəli təhlükəsiz şəbəkə qaydaları hibrid quruluşu idarə oluna bilən saxlayır.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="11-dr-ha.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Fəlakətdən Bərpa və Yüksək Əlçatanlıq</div></a>
+    <a href="13-production-security.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Prod Mühitində Terraform və Təhlükəsizlik</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

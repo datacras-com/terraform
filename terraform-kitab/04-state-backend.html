@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>State İdarəsi və Backend-lər · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 4</div>
+  <h1>State İdarəsi və Backend-lər</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">
+    Terraform-ın idarə etdiyi hər resurs barədə məlumat <strong>state</strong> faylında saxlanılır — bu fayl olmasa Terraform nəyi yaratdığını, nəyi dəyişməli olduğunu bilməz.
+    Bu fəsildə state-in necə işlədiyini, içində nə saxlandığını, niyə onu qorumaq lazım gəldiyini öyrənəcəyik.
+    Sonra remote state və <strong>backend</strong> anlayışlarına keçib komanda ilə işləyəndə state-i S3, Azure Blob Storage və ya Terraform Cloud-da necə saxlamağı, locking və şifrələməni necə qurmağı görəcəyik.
+  </div>
+
+  <p class="section-title">1 · Terraform state nədir</p>
+  <div class="card">
+    <h2>State — infrastrukturun anlıq şəkli</h2>
+    <p>
+      Terraform idarə etdiyi resursları izləmək üçün <code>terraform.tfstate</code> adlı state faylından istifadə edir.
+      Bu fayl infrastrukturun mövcud konfiqurasiyasının anlıq şəklidir (snapshot): Terraform hansı resursları yaratdığını, yenilədiyini və ya sildiyini məhz oradan bilir.
+    </p>
+    <p>
+      State olmasaydı, Terraform hər dəfə bulud provider-in API-sinə müraciət edib bütün resursların cari vəziyyətini soruşmalı olardı.
+      State faylı sayəsində isə Terraform <strong>mövcud vəziyyəti</strong> (state faylında yazılan) <strong>arzu olunan vəziyyətlə</strong> (<code>.tf</code> fayllarında təsvir edilən) müqayisə edir və yalnız fərqi tətbiq edir.
+    </p>
+    <h3>terraform apply işləyəndə state nəyə cavab verir</h3>
+    <ul>
+      <li>Hansı resurslar artıq mövcuddur?</li>
+      <li>Hansılar yaradılmalı, hansılar dəyişdirilməli, hansılar silinməlidir?</li>
+    </ul>
+    <div class="note">
+      State faylı Terraform üçün <strong>həqiqət mənbəyidir</strong> (source of truth). Onu əl ilə redaktə etmək demək olar ki, həmişə səhv addımdır — bunun üçün <code>terraform state</code> alt əmrləri var.
+    </div>
+  </div>
+
+  <p class="section-title">2 · State necə işləyir</p>
+  <div class="card">
+    <h2>Əməliyyat mərhələləri</h2>
+    <p>
+      Terraform resurs yaradanda və ya dəyişəndə state faylını yeniləyir.
+      Məsələn, AWS-də EC2 instance yaradanda instance ID və public IP kimi məlumatlar state-ə yazılır.
+    </p>
+    <table>
+      <tr><th>Mərhələ</th><th>Əmr</th><th>State ilə nə baş verir</th></tr>
+      <tr><td>State-in başlanğıcı</td><td><code>terraform init</code></td><td>Boş state hazırlanır, yaxud remote backend-də mövcud state götürülür</td></tr>
+      <tr><td>Refresh</td><td><code>terraform plan</code> / <code>apply</code></td><td>Provider API-si sorğulanır, state-in gerçəkliyə uyğunluğu yoxlanılır</td></tr>
+      <tr><td>Plan</td><td><code>terraform plan</code></td><td>State ilə konfiqurasiya müqayisə olunur, dəyişiklik siyahısı hazırlanır</td></tr>
+      <tr><td>Apply</td><td><code>terraform apply</code></td><td>İnfrastruktur dəyişdirilir və state faylı yenilənir</td></tr>
+      <tr><td>Destroy</td><td><code>terraform destroy</code></td><td>State oxunur, orada qeyd olunan resurslar tapılıb silinir</td></tr>
+    </table>
+    <div class="tip">
+      Plan mərhələsində gördüyünüz fərqlərin bir hissəsi əslində <em>drift</em>-dir: kimsə konsoldan əl ilə dəyişiklik edib, refresh isə bunu aşkarlayıb. Belə hallarda əvvəl drift-in səbəbini araşdırın, sonra apply edin.
+    </div>
+  </div>
+
+  <p class="section-title">3 · State faylı harada saxlanılır və nə saxlayır</p>
+  <div class="card">
+    <h2>Yerləşmə</h2>
+    <p>
+      Susmaya görə Terraform state faylını Terraform işə salınan qovluqda — yerli olaraq — <code>terraform.tfstate</code> adı ilə saxlayır.
+      Ancaq komanda ilə işlənən layihələrdə bu yanaşma münaqişəyə gətirib çıxarır: eyni infrastrukturu iki nəfər eyni vaxtda dəyişəndə state faylı korlanır.
+      Buna görə də state-i <strong>remote backend</strong>-də (Amazon S3, Azure Blob Storage və s.) saxlamaq daha düzgündür.
+    </p>
+    <h2>State faylının içindəkilər</h2>
+    <ul>
+      <li><strong>Resource ID-lər:</strong> yaradılmış resursların unikal identifikatorları — EC2 instance ID, S3 bucket adı və s.</li>
+      <li><strong>Resource atributları:</strong> IP ünvanları, security group qaydaları, subnet ID-ləri kimi əlavə məlumatlar.</li>
+      <li><strong>Output-lar:</strong> <code>output</code> bloklarında təyin etdiyiniz dəyərlər — public IP, verilənlər bazasının endpoint-i və s.</li>
+    </ul>
+    <div class="warn">
+      <strong>Diqqət:</strong> parollar, access key-lər və digər həssas məlumatlar da state faylına <em>açıq mətn şəklində</em> düşə bilər.
+      Buna görə state faylı heç vaxt git repozitoriyasına yüklənməməli, giriş hüququ məhdudlaşdırılmalı və şifrələnməlidir.
+      <code>.gitignore</code>-a <code>*.tfstate</code> və <code>*.tfstate.backup</code> əlavə etmək ilk addımdır.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>State niyə bu qədər vacibdir</h2>
+    <div class="two">
+      <div>
+        <h3>Dəyişikliyin izlənməsi</h3>
+        <p>State Terraform üçün həqiqət mənbəyidir; <code>apply</code> zamanı hansı dəyişikliyin lazım olduğu ondan çıxarılır.</p>
+      </div>
+      <div>
+        <h3>Sürət</h3>
+        <p>State olmasa, Terraform hər icra üçün bütün resursları API-dən soruşmalı olardı — bu isə əməliyyatları ciddi ləngidərdi.</p>
+      </div>
+    </div>
+    <h3>Artımlı (incremental) dəyişiklik</h3>
+    <p>
+      State sayəsində Terraform hər şeyi yenidən qurmaq əvəzinə yalnız dəyişməli olan komponentləri yeniləyir.
+      Bu, böyük infrastrukturlarda həm vaxta, həm də risk səviyyəsinə birbaşa təsir edir.
+    </p>
+  </div>
+
+  <p class="section-title">4 · Remote state</p>
+  <div class="card">
+    <h2>Remote state nədir</h2>
+    <p>
+      Remote state — state faylının paylaşılan uzaq bir yerdə saxlanmasıdır: S3 bucket, Azure Blob Storage, Google Cloud Storage və ya HashiCorp-un Terraform Cloud xidməti.
+      Beləliklə komandanın bütün üzvləri eyni state faylı ilə işləyir və uyğunluq pozulmur.
+    </p>
+    <table>
+      <tr><th>Xüsusiyyət</th><th>Nə verir</th></tr>
+      <tr><td>State locking</td><td>Eyni anda yalnız bir nəfər state-i dəyişə bilir — paralel <code>apply</code> state-i korlaya bilmir</td></tr>
+      <tr><td>Şifrələmə</td><td>State faylındakı həssas məlumatlar saxlanma zamanı şifrələnir</td></tr>
+      <tr><td>Versiyalama</td><td>S3 kimi anbarlar state-in köhnə versiyalarını saxlayır — səhv dəyişiklikdən geri qayıtmaq mümkün olur</td></tr>
+      <tr><td>Fəlakətdən bərpa</td><td>State faylı yüksək əlçatanlıqlı və davamlı anbarda qalır, yerli maşın sıradan çıxsa itmir</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Amazon S3 ilə remote state qurulması</h2>
+    <p>State faylını S3 bucket-də saxlamaq üçün Terraform-u S3 backend-i ilə konfiqurasiya edirik:</p>
+<pre><code><span class="k">terraform</span> {
+  <span class="k">backend</span> <span class="s">"s3"</span> {
+    bucket  = <span class="s">"my-terraform-state"</span>
+    key     = <span class="s">"global/s3/terraform.tfstate"</span>
+    region  = <span class="s">"us-west-1"</span>
+    encrypt = <span class="k">true</span>
+  }
+}</code></pre>
+    <ul>
+      <li><strong>bucket</strong> — state faylının saxlanacağı S3 bucket-in adı.</li>
+      <li><strong>key</strong> — bucket daxilində state faylının yolu. Fərqli layihələr üçün fərqli <code>key</code> seçin.</li>
+      <li><strong>region</strong> — bucket-in yerləşdiyi AWS region-u.</li>
+      <li><strong>encrypt</strong> — state faylının server tərəfli şifrələmə (SSE) ilə saxlanmasını təmin edir.</li>
+    </ul>
+    <div class="tip">
+      Bucket-də <strong>versioning</strong>-i aktivləşdirin. Belə olsa, korlanmış və ya səhvən silinmiş state-in əvvəlki versiyasını bərpa etmək mümkün olur — bu, ən ucuz sığortadır.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>DynamoDB ilə state locking</h2>
+    <p>
+      İki nəfərin eyni vaxtda state-i dəyişməsinin qarşısını almaq üçün DynamoDB cədvəli ilə locking qurulur.
+      Beləliklə eyni anda yalnız bir <code>terraform apply</code> icra oluna bilər və state korlanmır.
+    </p>
+<pre><code><span class="k">terraform</span> {
+  <span class="k">backend</span> <span class="s">"s3"</span> {
+    bucket         = <span class="s">"my-terraform-state"</span>
+    key            = <span class="s">"global/s3/terraform.tfstate"</span>
+    region         = <span class="s">"us-west-1"</span>
+    encrypt        = <span class="k">true</span>
+    dynamodb_table = <span class="s">"terraform-lock"</span>   <span class="c"># lock cədvəli</span>
+  }
+}</code></pre>
+    <p>
+      <code>dynamodb_table</code> arqumenti dəyişikliklər tətbiq olunarkən state-i kilidləmək üçün istifadə ediləcək cədvəli göstərir.
+      Cədvəlin partition key-i <code>LockID</code> adlı string olmalıdır.
+    </p>
+    <div class="warn">
+      Əməliyyat yarımçıq kəsilsə (məsələn, terminal bağlansa) kilid asılı qala bilər. Bu halda <code>terraform force-unlock &lt;LOCK_ID&gt;</code> işlədilir —
+      lakin əvvəlcə əmin olun ki, həqiqətən heç kim apply icra etmir, əks halda state-i korlaya bilərsiniz.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Terraform Cloud backend-i</h2>
+    <p>Remote state üçün başqa bir seçim Terraform Cloud-dur — state saxlanması, locking və komanda əməkdaşlığı üçün hazır dəstəyi var:</p>
+    <ul>
+      <li><strong>State idarəsi:</strong> state faylları üçün təhlükəsiz uzaq backend.</li>
+      <li><strong>State versiyalanması:</strong> versiyalar avtomatik saxlanılır, bərpa mümkündür.</li>
+      <li><strong>Daxili locking:</strong> paralel dəyişikliklərin qarşısı alınır.</li>
+      <li><strong>Əməkdaşlıq:</strong> GitHub kimi versiya nəzarəti sistemləri ilə inteqrasiya, komanda əsaslı iş axını.</li>
+    </ul>
+<pre><code><span class="k">terraform</span> {
+  <span class="k">backend</span> <span class="s">"remote"</span> {
+    organization = <span class="s">"my-org"</span>
+
+    workspaces {
+      name = <span class="s">"my-workspace"</span>
+    }
+  }
+}</code></pre>
+  </div>
+
+  <p class="section-title">5 · Backend-lər</p>
+  <div class="card">
+    <h2>Backend nədir</h2>
+    <p>
+      Terraform-da <strong>backend</strong> iki şeyi təyin edir: state faylının harada və necə saxlanması, həmçinin Terraform əməliyyatlarının (<code>plan</code>, <code>apply</code>, <code>destroy</code>) harada icra olunması.
+      Susmaya görə local backend işləyir, lakin onu S3, Azure Blob Storage, Google Cloud Storage, Terraform Cloud və digər uzaq variantlarla əvəzləmək olar.
+    </p>
+    <h3>Backend nəyə imkan verir</h3>
+    <ul>
+      <li><strong>State-i uzaqda saxlamaq:</strong> əməkdaşlıq və fəlakətdən bərpa üçün.</li>
+      <li><strong>State locking:</strong> eyni vaxtda dəyişikliyin qarşısını almaq.</li>
+      <li><strong>Şifrələmə:</strong> state daxilindəki həssas məlumatları qorumaq.</li>
+      <li><strong>Uzaq icra:</strong> Terraform Cloud kimi backend-lər plan və apply-ı sizin noutbukda deyil, uzaq mühitdə icra edir.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Geniş yayılmış backend növləri</h2>
+    <table>
+      <tr><th>Backend</th><th>İstifadə sahəsi</th><th>Locking</th><th>Əlavə</th></tr>
+      <tr><td>Amazon S3</td><td>AWS-də state saxlanması</td><td>DynamoDB cədvəli ilə</td><td>Server tərəfli şifrələmə, versioning</td></tr>
+      <tr><td>Azure Blob Storage</td><td>Azure-da state saxlanması</td><td>Blob lease / Cosmos DB</td><td>Storage account səviyyəsində şifrələmə</td></tr>
+      <tr><td>Google Cloud Storage</td><td>GCP-də state saxlanması</td><td>Daxili dəstək var</td><td>Versiyalama və şifrələmə</td></tr>
+      <tr><td>Terraform Cloud</td><td>HashiCorp-un öz xidməti</td><td>Daxili locking</td><td>Uzaq icra, komanda əməkdaşlığı</td></tr>
+      <tr><td>local</td><td>Tək nəfərlik təcrübə, sınaq</td><td>Yoxdur</td><td>Prod üçün uyğun deyil</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Backend konfiqurasiyası: Azure Blob Storage</h2>
+<pre><code><span class="k">terraform</span> {
+  <span class="k">backend</span> <span class="s">"azurerm"</span> {
+    storage_account_name = <span class="s">"myterraformstorage"</span>
+    container_name       = <span class="s">"tfstate"</span>
+    key                  = <span class="s">"terraform.tfstate"</span>
+  }
+}</code></pre>
+    <ul>
+      <li><strong>storage_account_name</strong> — state faylının saxlandığı Azure storage account-un adı.</li>
+      <li><strong>container_name</strong> — həmin account daxilindəki container.</li>
+      <li><strong>key</strong> — state faylının adı.</li>
+    </ul>
+    <div class="note">
+      Backend blokunda dəyişən (<code>var.*</code>) işlətmək olmaz — bu blok Terraform-un ən erkən mərhələsində oxunur.
+      Mühitə görə fərqli dəyərlər lazımdırsa, qismən konfiqurasiya yazıb qalanını əmr sətrindən ötürün:
+      <code>terraform init -backend-config=prod.hcl</code>.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Backend-i tətbiq etmək və state-i köçürmək</h2>
+    <p>Backend bloku əlavə edildikdən sonra <code>terraform init</code> işə salınmalıdır. Terraform mövcud yerli state-i yeni backend-ə köçürməyi təklif edir:</p>
+<pre><code><span class="c"># backend blokunu yazdıqdan sonra</span>
+terraform init
+
+<span class="c"># Terraform soruşacaq: mövcud state yeni backend-ə köçürülsün?</span>
+<span class="c"># "yes" cavabı verin — state S3-ə/Blob-a yüklənəcək</span>
+
+<span class="c"># backend parametrləri dəyişəndə yenidən konfiqurasiya:</span>
+terraform init -reconfigure
+
+<span class="c"># state-in cari məzmununa baxmaq</span>
+terraform state list
+terraform state show aws_instance.my_instance</code></pre>
+    <div class="tip">
+      State faylını heç vaxt əl ilə açıb redaktə etməyin. Resursu yenidən adlandırmaq üçün <code>terraform state mv</code>,
+      state-dən çıxarmaq üçün <code>terraform state rm</code>, mövcud resursu state-ə əlavə etmək üçün isə <code>terraform import</code> istifadə olunur.
+    </div>
+  </div>
+
+  <p class="section-title">6 · Yekun</p>
+  <div class="card">
+    <h2>Yadda saxla</h2>
+    <ul>
+      <li><strong>State Terraform-un yaddaşıdır:</strong> hansı resursun mövcud olduğunu, ID-lərini və atributlarını orada saxlayır; onsuz artımlı dəyişiklik mümkün deyil.</li>
+      <li><strong>State həssasdır:</strong> parol və açarlar açıq şəkildə düşə bilər — git-ə salmayın, şifrələyin, girişi məhdudlaşdırın.</li>
+      <li><strong>Komanda işi = remote state:</strong> S3, Azure Blob, GCS və ya Terraform Cloud paylaşılan həqiqət mənbəyi verir.</li>
+      <li><strong>Locking mütləqdir:</strong> S3 üçün DynamoDB cədvəli, Terraform Cloud üçün daxili locking — paralel apply state-i korlamasın deyə.</li>
+      <li><strong>Versiyalama bərpa deməkdir:</strong> bucket-də versioning aktiv olsun ki, səhv və ya korlanma halında geri qayıda biləsiniz.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="03-deyisen-output-data.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Dəyişənlər, Output-lar və Data Source-lar</div></a>
+    <a href="05-modullar-workspace.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Modullar və Workspace-lər</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

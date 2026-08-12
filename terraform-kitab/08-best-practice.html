@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Best Practice və Qabaqcıl Üsullar · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 8</div>
+  <h1>Best Practice və Qabaqcıl Üsullar</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">İşləyən Terraform kodu yazmaq bir məsələdir, il yarımdan sonra da başa düşülən və təhlükəsiz qalan kod yazmaq isə tamam başqa. Bu fəsildə komanda şəraitində sınaqdan çıxmış qaydaları — modullaşdırma, remote backend, versiya nəzarəti — və gündəlik işi asanlaşdıran qabaqcıl üsulları: secret idarəçiliyi, Terraform Cloud, <code>import</code>, workspace və <code>depends_on</code> nəzərdən keçirəcəyik.</div>
+
+  <p class="section-title">1 · Kodu modullaşdırın</p>
+  <div class="card">
+    <h2>Böyüyən infrastruktur, bölünən kod</h2>
+    <p>İnfrastruktur böyüdükcə tək bir <code>main.tf</code> faylı idarəolunmaz hala gəlir. Modullar kodu təkrar istifadə edilə bilən, məsuliyyəti aydın hissələrə bölür.</p>
+
+    <h3>Yaxşı modulun üç əlaməti</h3>
+    <ul>
+      <li><strong>Tək məsuliyyət prinsipi:</strong> hər modul bir komponentə cavabdeh olsun — VPC, EC2, RDS ayrı-ayrı. Bu, modulu həm fokuslu, həm də başqa layihədə istifadəyə yararlı saxlayır.</li>
+      <li><strong>Input və output işlədin:</strong> kənardan gələn dəyərlər üçün <code>variable</code>, modullar arasında məlumat ötürmək üçün <code>output</code> təyin edin. Modul öz daxilində sərt kodlanmış dəyər saxlamamalıdır.</li>
+      <li><strong>Versiya nəzarətində saxlayın:</strong> modulları Git repository-də və ya Terraform Registry-də yerləşdirin ki, versiyalansın və komandalar arasında rahat paylaşılsın.</li>
+    </ul>
+
+    <h3>Nümunə quruluş</h3>
+<pre><code>/modules
+  /vpc
+    main.tf
+    variables.tf
+    outputs.tf
+  /ec2
+    main.tf
+    variables.tf
+    outputs.tf</code></pre>
+
+    <p>Bu quruluş modulun layihələr arasında təkrar istifadəsini asanlaşdırır, kod dublikasiyasını azaldır və mühitlər arasında ardıcıllığı təmin edir.</p>
+
+    <div class="tip">Modula istinad edərkən versiyanı sabitləyin. <code>ref=v1.2.0</code> olmadan modul repository-sindəki hər dəyişiklik növbəti <code>terraform init</code> zamanı sizin infrastrukturunuza sızır:
+<pre><code><span class="k">module</span> <span class="s">"vpc"</span> {
+  source = <span class="s">"git::https://github.com/org/tf-modules.git//vpc?ref=v1.2.0"</span>
+  cidr   = <span class="s">"10.40.0.0/16"</span>
+}</code></pre></div>
+  </div>
+
+  <p class="section-title">2 · Remote state backend işlədin</p>
+  <div class="card">
+    <h2>State-i lokal saxlamayın</h2>
+    <p>4-cü fəsildə gördüyümüz kimi, state faylını uzaq yaddaşda saxlamaq komanda işində vacibdir. Amazon S3, Azure Blob Storage və ya Terraform Cloud kimi backend state-in bütün komanda üzvləri üçün eyni olmasını təmin edir, üstəlik şifrələmə və kilidləmə (locking) əlavə edir.</p>
+
+    <h3>Nümunə: S3 backend konfiqurasiyası</h3>
+<pre><code><span class="k">terraform</span> {
+  <span class="k">backend</span> <span class="s">"s3"</span> {
+    bucket  = <span class="s">"my-terraform-state"</span>
+    key     = <span class="s">"global/s3/terraform.tfstate"</span>
+    region  = <span class="s">"us-west-1"</span>
+    encrypt = <span class="k">true</span>
+  }
+}</code></pre>
+
+    <p>Remote backend state korlanmasının qarşısını alır, eyni anda iki nəfərin <code>apply</code> işlətməsini əngəlləyir və əlavə təhlükəsizlik qatı verir.</p>
+
+    <div class="warn">State faylı açıq mətndir və orada verilənlər bazası parolları, private key-lər kimi həssas dəyərlər saxlanılır. Bucket-i mütləq şifrələyin (<code>encrypt = true</code>), public girişi bağlayın və versiyalamanı aktivləşdirin ki, səhvən silinən state-i bərpa edə biləsiniz.</div>
+  </div>
+
+  <p class="section-title">3 · Versiya nəzarəti və teqləmə</p>
+  <div class="card">
+    <h2>Kodun tarixçəsi olmalıdır</h2>
+    <p>Terraform konfiqurasiyalarınızı və modullarınızı həmişə versiya nəzarət sistemində (Git) saxlayın. Bu, dəyişiklikləri izləməyə, komanda ilə birgə işləməyə və nəsə səhv gedəndə əvvəlki versiyaya qayıtmağa imkan verir.</p>
+
+    <h3>Əsas qaydalar</h3>
+    <ul>
+      <li><strong>Tez-tez commit edin:</strong> kiçik, mənalı commit mesajları ilə addım-addım irəliləyin.</li>
+      <li><strong>Branch işlədin:</strong> dev, staging və prod mühitlərini ayrı branch-larla və ya ayrı qovluqlarla bölün.</li>
+      <li><strong>Versiyaları teqləyin:</strong> infrastruktur kodunun buraxılışlarını teqləyin — geri qayıtmaq lazım olanda hansı vəziyyətə qayıdacağınız aydın olsun.</li>
+    </ul>
+
+<pre><code>git add .
+git commit -m <span class="s">"VPC üçün Terraform konfiqurasiyası əlavə edildi"</span>
+git tag v1.0.0
+git push --tags</code></pre>
+
+    <p>Teqləmə sayəsində hansı infrastruktur versiyasının prod-da işlədiyini müəyyən etmək asanlaşır.</p>
+
+    <div class="note"><code>.gitignore</code> faylına mütləq bunları əlavə edin: <code>.terraform/</code>, <code>*.tfstate</code>, <code>*.tfstate.backup</code>, <code>*.tfvars</code> (həssas dəyərlər olduqda), <code>crash.log</code>. <code>.terraform.lock.hcl</code> isə <strong>commit edilməlidir</strong> — o, provider versiyalarını bütün komanda üçün sabit saxlayır.</div>
+  </div>
+
+  <p class="section-title">4 · .terraformignore faylı</p>
+  <div class="card">
+    <h2>Nəyin yüklənməyəcəyini müəyyən edin</h2>
+    <p><code>.gitignore</code>-a bənzər şəkildə, <code>.terraformignore</code> faylı Terraform Cloud kimi remote backend-lərə hansı faylların <em>göndərilməyəcəyini</em> təyin edir.</p>
+
+<pre><code><span class="c"># .terraformignore</span>
+*.tfstate
+*.log
+.secret/*</code></pre>
+
+    <p>Bu, həssas və ya lazımsız faylların backend-ə yüklənməsinin qarşısını alır — həm təhlükəsizlik, həm də yükləmə sürəti baxımından faydalıdır.</p>
+  </div>
+
+  <p class="section-title">5 · Secret idarəçiliyi</p>
+  <div class="card">
+    <h2>Həssas məlumatı koda yazmayın</h2>
+    <p>API açarları, parollar və SSH key-lər Terraform-da idarəsi ən çətin hissədir. Əsas qayda sadədir: bu dəyərlər heç vaxt konfiqurasiya faylında sərt kodlanmamalıdır. Bir neçə təhlükəsiz yol var.</p>
+
+    <h3>1. Mühit dəyişənləri</h3>
+    <p>Terraform <code>TF_VAR_</code> prefiksi ilə başlayan mühit dəyişənlərini avtomatik olaraq eyniadlı <code>variable</code>-a bağlayır:</p>
+
+<pre><code><span class="k">export</span> TF_VAR_db_password=<span class="s">"mysecretpassword"</span>
+terraform apply</code></pre>
+
+    <h3>2. Terraform Cloud / Enterprise</h3>
+    <p>Terraform Cloud həssas dəyərləri workspace dəyişəni kimi saxlamağa imkan verir — onlar şifrələnir və log-da göstərilmir.</p>
+
+    <h3>3. Secret idarəetmə alətləri</h3>
+    <p>HashiCorp Vault, AWS Secrets Manager və ya Azure Key Vault ilə inteqrasiya edərək secret-ləri işləmə anında konfiqurasiyaya çəkmək olar.</p>
+
+<pre><code><span class="c"># Parolu AWS Secrets Manager-dən oxuyuruq</span>
+<span class="k">data</span> <span class="s">"aws_secretsmanager_secret_version"</span> <span class="s">"db_password"</span> {
+  secret_id = <span class="s">"my-db-password"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_db_instance"</span> <span class="s">"my_db"</span> {
+  allocated_storage = 10
+  engine            = <span class="s">"mysql"</span>
+  instance_class    = <span class="s">"db.t2.micro"</span>
+  name              = <span class="s">"mydb"</span>
+  username          = <span class="s">"admin"</span>
+
+  <span class="c"># Parol koda yazılmır, secret store-dan gəlir</span>
+  password = data.aws_secretsmanager_secret_version.db_password.secret_string
+}</code></pre>
+
+    <p>Burada verilənlər bazası parolu konfiqurasiyada sərt kodlanmaq əvəzinə AWS Secrets Manager-dən təhlükəsiz şəkildə oxunur.</p>
+
+    <div class="warn">Secret-i data source ilə oxumaq onun state faylına düşməsinin qarşısını almır — Terraform oxuduğu hər dəyəri state-də saxlayır. Ona görə remote state şifrələməsi və giriş məhdudiyyəti bu yanaşmanın ayrılmaz hissəsidir, alternativi deyil.</div>
+
+    <h3>Yanaşmaların müqayisəsi</h3>
+    <table>
+      <tr><th>Üsul</th><th>Üstünlük</th><th>Məhdudiyyət</th><th>Uyğun hal</th></tr>
+      <tr><td>Mühit dəyişəni (<code>TF_VAR_</code>)</td><td>Sadə, əlavə alət tələb etmir</td><td>Əl ilə idarə olunur, rotasiya yoxdur</td><td>Lokal iş, kiçik komanda</td></tr>
+      <tr><td>Terraform Cloud dəyişəni</td><td>Şifrələnir, log-da gizlədilir</td><td>Terraform Cloud-a bağlıdır</td><td>Terraform Cloud işlədən komandalar</td></tr>
+      <tr><td>Vault / Secrets Manager</td><td>Mərkəzləşdirilmiş, avtomatik rotasiya, audit</td><td>Əlavə infrastruktur və konfiqurasiya</td><td>Prod mühiti, tənzimləmə tələbləri</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">6 · Terraform Cloud ilə uzaq icra</p>
+  <div class="card">
+    <h2>Əmrləri lokal maşında işlətməmək</h2>
+    <p>Terraform Cloud <code>plan</code> və <code>apply</code> əmrlərini sizin noutbukunuzda deyil, mərkəzi mühitdə icra etməyə imkan verir. Böyük komandalar üçün bu, infrastruktur idarəçiliyini bir yerdə toplayır.</p>
+
+    <p>Terraform Cloud-un verdikləri:</p>
+    <ul>
+      <li><strong>Uzaq state idarəçiliyi:</strong> state faylı avtomatik saxlanılır və kilidlənir.</li>
+      <li><strong>Uzaq plan və apply:</strong> əmrlər eyni mühitdə işləyir — kimin hansı Terraform versiyası ilə işlətdiyi fərq etmir.</li>
+      <li><strong>Birgə iş vasitələri:</strong> bir neçə komanda üzvü eyni infrastruktur üzərində nizamlı şəkildə işləyə bilir.</li>
+    </ul>
+
+    <h3>Nümunə: backend kimi Terraform Cloud</h3>
+<pre><code><span class="k">terraform</span> {
+  <span class="k">backend</span> <span class="s">"remote"</span> {
+    organization = <span class="s">"my-org"</span>
+
+    workspaces {
+      name = <span class="s">"my-workspace"</span>
+    }
+  }
+}</code></pre>
+
+    <p>Bu quruluşla CI/CD pipeline-ları inteqrasiya etmək, plan-ların tətbiqini avtomatlaşdırmaq və təsdiq (approval) mərhələləri qurmaq da mümkün olur.</p>
+  </div>
+
+  <p class="section-title">7 · terraform import — mövcud resursları idarəyə almaq</p>
+  <div class="card">
+    <h2>Əl ilə yaradılmış resurslar</h2>
+    <p>Bulud konsolundan əl ilə yaradılmış resurslar var və siz onları bundan sonra Terraform ilə idarə etmək istəyirsinizsə, <code>terraform import</code> əmri bu resursu state-ə əlavə edir.</p>
+
+<pre><code>terraform import aws_instance.my_instance i-0abcd1234</code></pre>
+
+    <ul>
+      <li>Bu nümunədə <code>i-0abcd1234</code> ID-li EC2 instansı Terraform state-inə import edilir.</li>
+      <li>Import-dan <strong>sonra</strong> həmin resursu konfiqurasiyada (məsələn <code>main.tf</code>-də) təsvir etməlisiniz — əks halda Terraform növbəti plan-da onu silmək istəyəcək.</li>
+    </ul>
+
+    <div class="tip">Doğru ardıcıllıq: əvvəlcə boş <code>resource</code> bloku yazın, sonra <code>import</code> edin, sonra <code>terraform plan</code> işlədin və plan tamamilə boş olana qədər konfiqurasiyanı faktiki resursa uyğunlaşdırın. Terraform 1.5+ versiyasında bunu <code>import</code> bloku ilə deklarativ etmək və <code>-generate-config-out</code> ilə kodu avtomatik yaratmaq da olar.</div>
+  </div>
+
+  <p class="section-title">8 · Workspace ilə çoxlu mühit</p>
+  <div class="card">
+    <h2>Bir konfiqurasiya, bir neçə mühit</h2>
+    <p>Terraform workspace-ləri eyni konfiqurasiyadan bir neçə mühiti (dev, staging, prod) idarə etməyə imkan verir — 5-ci fəsildə baxdığımız kimi.</p>
+
+    <h3>1. Workspace yaratmaq və keçid etmək</h3>
+<pre><code>terraform workspace new dev
+terraform workspace new prod
+terraform workspace select dev</code></pre>
+
+    <h3>2. Resurs adlarını mühitə görə fərqləndirmək</h3>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  tags = {
+    <span class="c"># Ad avtomatik olaraq aktiv workspace-in adını alır</span>
+    Name = <span class="s">"my-instance-${terraform.workspace}"</span>
+  }
+}</code></pre>
+
+    <p>Workspace sayəsində konfiqurasiya fayllarını təkrarlamadan fərqli mühitləri idarə etmək olur.</p>
+
+    <div class="note">Workspace-lər eyni backend və eyni provider konfiqurasiyasını paylaşır. Mühitlər fərqli AWS account-larda yerləşirsə və ya tamamilə fərqli girişə malikdirsə, workspace əvəzinə ayrı qovluq və ayrı backend quruluşu daha təhlükəsizdir.</div>
+  </div>
+
+  <p class="section-title">9 · depends_on ilə mürəkkəb asılılıqlar</p>
+  <div class="card">
+    <h2>Terraform-un görmədiyi əlaqələr</h2>
+    <p>Terraform resurslar arasındakı asılılıqları istinadlara baxaraq özü müəyyən edir. Amma bəzi hallarda resurslar arasında birbaşa istinad olmur, halbuki sıra vacibdir. Belə vaxtlarda <code>depends_on</code> arqumenti ilə asılılığı açıq şəkildə bildirmək lazımdır.</p>
+
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  <span class="c"># Bucket bu instansdan əvvəl yaradılsın</span>
+  depends_on = [aws_s3_bucket.my_bucket]
+}
+
+<span class="k">resource</span> <span class="s">"aws_s3_bucket"</span> <span class="s">"my_bucket"</span> {
+  bucket = <span class="s">"my-bucket"</span>
+}</code></pre>
+
+    <p>Bu nümunədə iki resurs arasında heç bir birbaşa əlaqə olmasa da, Terraform S3 bucket-i EC2 instansından əvvəl yaradacaq.</p>
+
+    <div class="warn"><code>depends_on</code>-u yalnız zərurət olanda işlədin. Hər yerə əlavə etmək asılılıq qrafını lazımsız yerə sıxlaşdırır, paralel icranı azaldır və plan-ı yavaşladır. Mümkün olduqca istinad (<code>aws_s3_bucket.my_bucket.id</code>) işlədin — Terraform asılılığı özü çıxarsın.</div>
+  </div>
+
+  <p class="section-title">10 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li><strong>Modul = tək məsuliyyət:</strong> hər modul bir komponentə cavabdeh olsun, input/output ilə ünsiyyət qursun və versiyalanmış mənbədən çağırılsın.</li>
+      <li><strong>Remote backend şərtdir:</strong> komanda ilə işləyirsinizsə, lokal state ilk gündən problemdir. Şifrələmə, kilidləmə və versiyalama üçlüyünü aktivləşdirin.</li>
+      <li><strong>Secret koda yazılmır:</strong> <code>TF_VAR_</code>, Terraform Cloud dəyişəni və ya Vault/Secrets Manager — üçündən biri, amma heç vaxt <code>.tf</code> faylında açıq mətn.</li>
+      <li><strong>Import-dan sonra kod yazılır:</strong> resursu state-ə gətirmək yarım işdir; konfiqurasiyada təsvir etməsəniz, Terraform onu silməyə çalışacaq.</li>
+      <li><strong>depends_on son çarədir:</strong> asılılığı istinadla ifadə etmək mümkündürsə, elə edin. Açıq <code>depends_on</code> yalnız gizli əlaqələr üçündür.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="07-test-debug.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Test və Debug</div></a>
+    <a href="09-cicd.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">CI/CD İnteqrasiyası</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

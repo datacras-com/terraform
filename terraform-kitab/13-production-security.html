@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prod Mühitində Terraform və Təhlükəsizlik · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 13</div>
+  <h1>Prod Mühitində Terraform və Təhlükəsizlik</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Sınaq mühitində işləyən Terraform konfiqurasiyası prod mühitə çıxanda tamam başqa tələblərlə üzləşir: state faylı həssas məlumat daşıyır, bir neçə adam eyni infrastruktura toxunur, hər dəyişikliyin izi qalmalıdır. Bu fəsildə state-in təhlükəsiz saxlanmasından tutmuş RBAC, secret idarəetməsi, CI/CD avtomatlaşdırması və monitorinqə qədər prod mühit üçün lazım olan bütün təbəqələri nəzərdən keçiririk.</div>
+
+  <p class="section-title">1 · Prod mühitin əsas çətinlikləri</p>
+  <div class="card">
+    <h2>Nə dəyişir?</h2>
+    <p>Lokal maşında <code>terraform apply</code> yazmaqla prod mühitdə eyni əmri işə salmaq arasında böyük fərq var. Aşağıdakı beş sahə prod mühitdə mütləq həll olunmalıdır:</p>
+    <table>
+      <tr><th>Sahə</th><th>Problem</th><th>Həll istiqaməti</th></tr>
+      <tr><td>State idarəetməsi</td><td>State faylı parol, IP, ARN kimi həssas dəyərləri açıq saxlayır</td><td>Şifrələnmiş remote backend, məhdud giriş</td></tr>
+      <tr><td>Təhlükəsizlik</td><td>Kim nəyi dəyişə bilər — nəzarətsizdir</td><td>RBAC, IAM policy, secret manager</td></tr>
+      <tr><td>Komanda işi</td><td>İki nəfər eyni anda apply edir, state korlanır</td><td>State locking + Git axını</td></tr>
+      <tr><td>Avtomatlaşdırma</td><td>Əl ilə apply — insan səhvi qaçılmazdır</td><td>CI/CD pipeline, plan/apply ayrılması</td></tr>
+      <tr><td>Monitorinq və log</td><td>Nə dəyişdi, kim dəyişdi — bilinmir</td><td>CloudWatch, CloudTrail, audit log</td></tr>
+    </table>
+    <div class="note"><strong>Yadda saxla:</strong> bu beş sahə bir-birindən asılıdır. Yalnız state-i şifrələyib RBAC qurmasan, şifrələmə çox az şey qazandırır — çünki state-ə girişi olan hər kəs həmin açarları oxuya bilər.</div>
+  </div>
+
+  <p class="section-title">2 · Prod mühitdə state idarəetməsi</p>
+  <div class="card">
+    <h2>a. Remote state saxlanması</h2>
+    <p>Terraform state faylı infrastrukturun mövcud vəziyyətini izləyir və hansı dəyişikliklərin tətbiq olunacağını məhz bu fayla əsasən hesablayır. Prod mühitdə state heç vaxt lokal fayl kimi qalmamalıdır — Amazon S3, Azure Blob Storage və ya Terraform Cloud kimi remote backend işlədilir. Remote backend komanda işi, versiyalama, locking və şifrələmə imkanı verir.</p>
+    <p><strong>Nümunə: state-in S3-də saxlanması</strong></p>
+<pre><code><span class="k">terraform</span> {
+  <span class="k">backend</span> <span class="s">"s3"</span> {
+    bucket         = <span class="s">"my-terraform-state-prod"</span>
+    key            = <span class="s">"global/s3/terraform.tfstate"</span>
+    region         = <span class="s">"us-west-1"</span>
+    encrypt        = <span class="k">true</span>              <span class="c"># server-side şifrələmə</span>
+    dynamodb_table = <span class="s">"terraform-lock"</span>  <span class="c"># state locking cədvəli</span>
+  }
+}</code></pre>
+    <p>Bu konfiqurasiyada:</p>
+    <ul>
+      <li>State şifrələmə aktiv olan S3 bucket-də saxlanır.</li>
+      <li>DynamoDB cədvəli state locking üçün işlədilir — eyni anda bir neçə istifadəçinin state-i dəyişməsinin qarşısını alır.</li>
+    </ul>
+
+    <h3>b. Locking və versiyalama</h3>
+    <p><strong>State locking</strong> eyni vaxtda iki əməliyyatın state faylına toxunmasının qarşısını alır: istənilən anda yalnız bir Terraform icrası infrastrukturu dəyişə bilər. Prod mühitdə bu, race condition və konflikt riskini aradan qaldırır.</p>
+    <p><strong>Versiyalama</strong> isə lazım gələndə əvvəlki state-ə qayıtmaq imkanı verir — səhv apply-dan və ya gözlənilməz nəticədən sonra bərpa yolu açıq qalır. Yuxarıdakı nümunədə DynamoDB locking-i, S3 bucket versiyalanması isə tarixçəni təmin edir.</p>
+    <div class="warn"><strong>Diqqət:</strong> S3 bucket-də versiyalamanı bucket səviyyəsində ayrıca aktivləşdirməlisən — <code>encrypt = true</code> avtomatik versiyalama gətirmir. Həmçinin bucket-i mütləq <em>public access block</em> ilə bağla; açıq state bucket-i infrastrukturun tam xəritəsini kənar adamlara verir.</div>
+  </div>
+
+  <p class="section-title">3 · Təhlükəsizlik: RBAC və secret idarəetməsi</p>
+  <div class="card">
+    <h2>a. Rol əsaslı giriş nəzarəti (RBAC)</h2>
+    <p>Prod mühitdə infrastruktura dəyişiklik tətbiq edə bilən adamların dairəsi məhdud olmalıdır. Bunu bulud provayderinin IAM policy-ləri ilə və ya Terraform Enterprise-ın daxili RBAC imkanları ilə qururuq.</p>
+    <p><strong>Nümunə: Terraform istifadəçiləri üçün AWS IAM policy</strong></p>
+<pre><code>{
+  <span class="s">"Version"</span>: <span class="s">"2012-10-17"</span>,
+  <span class="s">"Statement"</span>: [
+    {
+      <span class="s">"Effect"</span>: <span class="s">"Allow"</span>,
+      <span class="s">"Action"</span>: [
+        <span class="s">"s3:GetObject"</span>,
+        <span class="s">"s3:PutObject"</span>,
+        <span class="s">"s3:ListBucket"</span>
+      ],
+      <span class="s">"Resource"</span>: <span class="s">"arn:aws:s3:::my-terraform-state-prod/*"</span>
+    },
+    {
+      <span class="s">"Effect"</span>: <span class="s">"Allow"</span>,
+      <span class="s">"Action"</span>: <span class="s">"dynamodb:*"</span>,
+      <span class="s">"Resource"</span>: <span class="s">"arn:aws:dynamodb:us-west-1:123456789012:table/terraform-lock"</span>
+    }
+  ]
+}</code></pre>
+    <p>Bu policy Terraform istifadəçisinə yalnız state saxlanan S3 bucket-i və locking üçün işlədilən DynamoDB cədvəli ilə işləmək icazəsi verir — nə artıq, nə əskik.</p>
+    <div class="tip"><strong>Təklif:</strong> plan və apply üçün ayrı rollar qur. Plan rolu yalnız oxuma (<code>Describe*</code>, <code>Get*</code>, <code>List*</code>) icazələri ilə işləsin, apply rolunu isə yalnız CI/CD-nin main branch job-u öz üzərinə götürə bilsin. Beləliklə pull request mərhələsində heç kim təsadüfən infrastrukturu dəyişə bilməz.</div>
+
+    <h2>b. Secret idarəetməsi</h2>
+    <p>API açarları, parollar və digər kredensiallar heç vaxt Terraform konfiqurasiyasına birbaşa yazılmamalıdır. Bunun əvəzinə AWS Secrets Manager, Azure Key Vault və ya HashiCorp Vault kimi secret idarəetmə sistemlərindən istifadə edilir.</p>
+    <p><strong>Nümunə: AWS Secrets Manager-dən secret oxumaq</strong></p>
+<pre><code><span class="k">data</span> <span class="s">"aws_secretsmanager_secret_version"</span> <span class="s">"db_password"</span> {
+  secret_id = <span class="s">"my-database-password"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_db_instance"</span> <span class="s">"example"</span> {
+  allocated_storage = 20
+  engine            = <span class="s">"mysql"</span>
+  instance_class    = <span class="s">"db.t2.micro"</span>
+  name              = <span class="s">"exampledb"</span>
+  username          = <span class="s">"admin"</span>
+  <span class="c"># parol kodda deyil — icra anında Secrets Manager-dən gəlir</span>
+  password = data.aws_secretsmanager_secret_version.db_password.secret_string
+}</code></pre>
+    <p>Burada baza parolu dinamik olaraq Secrets Manager-dən oxunur, yəni həssas məlumat Terraform kodunda və Git tarixçəsində qalmır.</p>
+    <div class="warn"><strong>Vacib incəlik:</strong> secret kodda görünmür, amma <strong>state faylına düşür</strong>. Terraform data source-un nəticəsini state-də saxlayır. Buna görə secret idarəetməsi remote state şifrələməsini əvəz etmir — ikisi birlikdə işləməlidir.</div>
+  </div>
+
+  <p class="section-title">4 · Komanda işi və versiya nəzarəti</p>
+  <div class="card">
+    <h2>Terraform üçün Git axını</h2>
+    <p>Prod mühitdə adətən bir neçə komanda eyni infrastruktur üzərində işləyir. Konfliktin qarşısını almaq və məsuliyyəti izləmək üçün Git remote backend və locking ilə birlikdə işlədilir. Tipik axın belədir:</p>
+    <ol>
+      <li><strong>Feature branch yarat</strong> — hər infrastruktur dəyişikliyi üçün ayrı branch:
+<pre><code>git checkout -b add-new-ec2-instance</code></pre></li>
+      <li><strong>Konfiqurasiyanı dəyiş</strong> — yeni resource əlavə et və ya mövcudunu redaktə et.</li>
+      <li><strong><code>terraform plan</code> işlət</strong> — hansı dəyişikliklərin tətbiq olunacağını gör.</li>
+      <li><strong>Pull request aç</strong> — dəyişiklik baxışdan keçsin; plan çıxışını PR şərhinə əlavə et.</li>
+      <li><strong>Merge və apply</strong> — təsdiqdən sonra main branch-a merge et, apply pipeline-dan keçsin.</li>
+    </ol>
+    <div class="note">Plan çıxışını PR-a avtomatik yapışdırmaq ən dəyərli vərdişlərdən biridir: rəyçi kodun nə yazdığını deyil, infrastrukturun <em>faktiki nə edəcəyini</em> görür. <code>-2 to destroy</code> sətri heç bir kod baxışının tuta bilməyəcəyi səhvi üzə çıxarır.</div>
+  </div>
+
+  <p class="section-title">5 · Terraform üçün CI/CD pipeline</p>
+  <div class="card">
+    <h2>GitHub Actions nümunəsi</h2>
+    <p>Terraform axınının avtomatlaşdırılması infrastrukturun ardıcıl və minimal insan müdaxiləsi ilə yerləşdirilməsini təmin edir. Jenkins, GitHub Actions və ya GitLab CI — hansını seçməyindən asılı olmayaraq məntiq eynidir: <em>PR-da plan, main-də apply</em>.</p>
+<pre><code><span class="k">name</span>: Terraform
+
+<span class="k">on</span>:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+<span class="k">jobs</span>:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - <span class="k">name</span>: <span class="s">"Repo-nu yüklə"</span>
+        uses: actions/checkout@v2
+
+      - <span class="k">name</span>: <span class="s">"Terraform quraşdır"</span>
+        uses: hashicorp/setup-terraform@v1
+
+      - <span class="k">name</span>: <span class="s">"Terraform init"</span>
+        run: terraform init
+
+      - <span class="k">name</span>: <span class="s">"Terraform plan"</span>
+        run: terraform plan
+
+      <span class="c"># apply yalnız main branch-a push olanda işə düşür</span>
+      - <span class="k">name</span>: <span class="s">"Terraform apply"</span>
+        <span class="k">if</span>: github.ref == <span class="s">'refs/heads/main'</span>
+        run: terraform apply -auto-approve</code></pre>
+    <p>Bu axında:</p>
+    <ul>
+      <li>Hər pull request üçün <code>terraform plan</code> işə düşür və dəyişikliyi yoxlayır.</li>
+      <li><code>terraform apply</code> yalnız main branch-a push olduqda tətbiq edilir.</li>
+    </ul>
+    <div class="tip"><strong>Bir addım irəli:</strong> plan nəticəsini fayla yaz (<code>terraform plan -out=tfplan</code>) və apply mərhələsində məhz həmin faylı tətbiq et (<code>terraform apply tfplan</code>). Belədə baxışdan keçən plan ilə tətbiq edilən dəyişiklik eyni olur — aralıqda infrastruktur dəyişsə belə, gözlənilməz nəticə çıxmır.</div>
+  </div>
+
+  <p class="section-title">6 · Prod mühitdə monitorinq və loglama</p>
+  <div class="card">
+    <h2>CloudWatch ilə monitorinq</h2>
+    <p>Monitorinq və loglama infrastrukturun vəziyyətini izləmək və problemləri erkən görmək üçün vacibdir. Bulud provayderlərinin öz monitorinq alətləri Terraform ilə birbaşa idarə oluna bilər.</p>
+    <p><strong>Nümunə: EC2 üçün CloudWatch alarm</strong></p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_cloudwatch_metric_alarm"</span> <span class="s">"cpu_alarm"</span> {
+  alarm_name          = <span class="s">"high-cpu-usage"</span>
+  comparison_operator = <span class="s">"GreaterThanThreshold"</span>
+  evaluation_periods  = 2
+  metric_name         = <span class="s">"CPUUtilization"</span>
+  namespace           = <span class="s">"AWS/EC2"</span>
+  period              = 60
+  statistic           = <span class="s">"Average"</span>
+  threshold           = 80
+  alarm_description   = <span class="s">"EC2 instance-də yüksək CPU istifadəsini izləyir."</span>
+
+  dimensions = {
+    InstanceId = aws_instance.my_instance.id
+  }
+
+  <span class="c"># alarm işə düşəndə SNS topic-ə bildiriş gedir</span>
+  alarm_actions = [aws_sns_topic.my_topic.arn]
+}</code></pre>
+    <p>Burada EC2 instance-in CPU istifadəsini izləyən alarm yaradılır: göstərici ardıcıl iki dövr ərzində 80%-i keçərsə, SNS topic-ə xəbərdarlıq göndərilir.</p>
+    <div class="ai"><strong>Copilot ilə iş:</strong> alarm bloklarını əl ilə yazmaq yerinə Copilot-a “bu resource üçün CPU, disk və status-check alarm-larını yarat, hamısı eyni SNS topic-ə göndərsin” tipli göstəriş ver. Sonra <code>threshold</code> və <code>evaluation_periods</code> dəyərlərini özün yoxla — model adətən nümunə dəyərləri təkrarlayır, sənin yükünə uyğun rəqəmi bilmir.</div>
+  </div>
+
+  <p class="section-title">7 · Prod mühit üçün ən yaxşı praktikalar</p>
+  <div class="card">
+    <h2>a. IaC prinsipləri</h2>
+    <ul>
+      <li><strong>İdempotentlik:</strong> eyni Terraform kodunu bir neçə dəfə işə salmaq eyni nəticəni verməlidir. İkinci <code>apply</code> “No changes” deməlidir.</li>
+      <li><strong>Versiyalama:</strong> kod dəyişikliklərini Git-də izlə — geri qayıtmaq imkanı bundan gəlir.</li>
+      <li><strong>Modulluq:</strong> konfiqurasiyanı təkrar istifadə olunan modullara böl; belədə mühitlər arasında ardıcıllıq təbii şəkildə yaranır.</li>
+    </ul>
+    <h2>b. Avtomatlaşdırılmış test</h2>
+    <p>Terratest kimi alətlərlə infrastruktur kodunu prod mühitə çıxmazdan əvvəl yoxla: modul həqiqətən gözlənilən resource-ları yaradırmı, output-lar düzgündürmü, təhlükəsizlik qrupları gözlədiyindən artıq port açmırmı.</p>
+    <table>
+      <tr><th>Təbəqə</th><th>Alət</th><th>Nə yoxlayır</th></tr>
+      <tr><td>Sintaksis</td><td><code>terraform validate</code>, <code>fmt</code></td><td>Kod düzgün yazılıbmı</td></tr>
+      <tr><td>Statik təhlükəsizlik</td><td>tfsec, checkov</td><td>Şifrələnməmiş bucket, açıq port</td></tr>
+      <tr><td>Policy</td><td>Sentinel, OPA</td><td>Daxili qaydalara uyğunluq</td></tr>
+      <tr><td>Funksional</td><td>Terratest</td><td>Yaradılan infrastruktur işləyirmi</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">8 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>Prod state <strong>mütləq</strong> remote, şifrələnmiş və locking-li olmalıdır — S3 + DynamoDB ən çox işlədilən cütlükdür.</li>
+      <li>Terraform istifadəçisinə minimal IAM icazəsi ver; plan və apply üçün ayrı rol işlət ki, PR mərhələsində heç nə dəyişməsin.</li>
+      <li>Secret-lər kodda deyil, Secrets Manager / Key Vault / Vault-da saxlanır — lakin state faylına düşdüyünü unutma, state-i də qoru.</li>
+      <li>Hər dəyişiklik Git branch → plan → PR baxışı → merge → apply yolundan keçsin; əl ilə apply istisna hal olmalıdır.</li>
+      <li>Monitorinq və audit log-u infrastrukturun bir hissəsi kimi Terraform ilə qur — sonradan əlavə edilən monitorinq həmişə natamam qalır.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="12-hybrid-cloud.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Hibrid Cloud</div></a>
+    <a href="14-compliance.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Uyğunluq (Compliance) və Audit</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

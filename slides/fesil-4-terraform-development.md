@@ -288,7 +288,6 @@ Hər tərəfdə görürük: `10.0.0.0/16`, `10.0.1.0/24`… Açaq görək bu yaz
 ---
 
 <!-- Slide 4.2a1b: Route Table Association dərindən -->
-<!-- _class: tight -->
 ## 4.2 — Route Table Association: Xəritə və Qoşqu
 
 Üç ayrı anlayışı qarışdırmayaq — **marşrut** (yol qaydası), **route table** (qaydalar toplusu) və **association** (toplunun subnetə bağlanması):
@@ -1147,7 +1146,6 @@ $ terraform apply&nbsp;&nbsp;<span style="color:#FBBF24;">yes</span><br />
 
 ---
 
-<!-- _class: tight -->
 ## Mini Yoxlama — Fəsil 4.5 · Fəsil 4 Tamamlandı! 🎉
 
 <div style="margin:6px 0;">

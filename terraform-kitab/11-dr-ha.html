@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fəlakətdən Bərpa və Yüksək Əlçatanlıq · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 11</div>
+  <h1>Fəlakətdən Bərpa və Yüksək Əlçatanlıq</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Data mərkəzi söndü, şəbəkə qırıldı, disk zədələndi — sual "olacaqmı" deyil, "nə vaxt olacaq" sualıdır. Fəlakətdən bərpa (Disaster Recovery, DR) həmin an biznesin dayanmaması üçün əvvəlcədən qurulmuş plandır. Bu fəsildə çox-region deploy, Route 53 ilə avtomatik failover, backup və replikasiya, həmçinin Kubernetes klasterləri üçün DR-i Terraform ilə necə avtomatlaşdıracağımıza baxırıq.</div>
+
+  <p class="section-title">1 · Fəlakətdən bərpanın üç sütunu</p>
+  <div class="card">
+    <h2>DR nə deməkdir</h2>
+    <p>DR data mərkəzi kəsintiləri, şəbəkə nasazlıqları, təbii fəlakətlər və kiber hücumlar zamanı biznesin davam etməsinə yönəlib. Yaxşı qurulmuş DR strategiyası iki şeyi minimuma endirir: <strong>dayanma müddəti</strong> və <strong>itirilən data</strong>.</p>
+    <ul>
+      <li><strong>Yüksək əlçatanlıq (HA)</strong> — xidmətləri bir neçə region və ya zona arasında paylayaraq həmişə əlçatan saxlamaq. HA gündəlik nasazlıqlara qarşıdır.</li>
+      <li><strong>Backup və bərpa</strong> — verilənlər bazasının, fayl sistemlərinin və tətbiq datasının müntəzəm nüsxəsi. Data korlanması və ya səhvən silinmə hallarında yeganə çıxış yolu budur.</li>
+      <li><strong>Failover və failback</strong> — sıradan çıxmış əsas sistemdən ehtiyat sistemə keçmək (failover), problem həll olunandan sonra geri qayıtmaq (failback).</li>
+    </ul>
+    <p>Terraform bu işlərin böyük hissəsini avtomatlaşdıra bilir: infrastruktur kod şəklində olduğu üçün ikinci region-da eyni quruluşu təkrar yaratmaq bir <code>apply</code> məsafəsindədir.</p>
+
+    <table>
+      <tr><th>Anlayış</th><th>Mənası</th><th>Praktiki sual</th></tr>
+      <tr><td>RTO</td><td>Bərpa üçün icazə verilən maksimum vaxt</td><td>"Nə qədər müddət dayana bilərik?"</td></tr>
+      <tr><td>RPO</td><td>İtirilməsinə dözülən maksimum data</td><td>"Neçə dəqiqəlik datanı itirə bilərik?"</td></tr>
+      <tr><td>HA</td><td>Nasazlıqda xidmətin davam etməsi</td><td>"Bir zona sönsə nə olur?"</td></tr>
+      <tr><td>Failover</td><td>Ehtiyat sistemə keçid</td><td>"Keçid avtomatikdirmi?"</td></tr>
+      <tr><td>Failback</td><td>Əsas sistemə qayıdış</td><td>"Geri qayıtmağı sınamışıqmı?"</td></tr>
+    </table>
+    <div class="note">RTO və RPO texniki deyil, biznes qərarlarıdır. Sıfıra yaxın RPO tələb edən sistem çox-region sinxron replikasiya deməkdir və xərci bir neçə dəfə artırır. Rəqəmləri əvvəlcə biznes tərəfi ilə razılaşdırın, memarlığı sonra seçin.</div>
+  </div>
+
+  <p class="section-title">2 · Terraform ilə DR-in açar anlayışları</p>
+  <div class="card">
+    <h2>a. Çox-region və çox-zona deploy</h2>
+    <p>DR-in ən geniş yayılmış yanaşması resursları bir neçə region və ya availability zone arasında paylamaqdır. Bir region-da nasazlıq olanda trafik eyni infrastrukturun işlədiyi digər region-a yönləndirilir.</p>
+
+    <h2>b. Backup və replikasiya</h2>
+    <p>Müntəzəm backup DR-in özəyidir. Terraform bulud-nativ backup xidmətlərini — Amazon S3, Azure Backup, Google Cloud Storage — konfiqurasiya edərək datanın avtomatik olaraq təhlükəsiz yerə köçürülməsini təmin edir.</p>
+
+    <h2>c. Avtomatik failover</h2>
+    <p>Avtomatik failover əsas sistem sıradan çıxanda trafikin insan müdaxiləsi olmadan ehtiyat sistemə yönlənməsidir. Bunun üçün AWS Route 53, Azure Traffic Manager və ya Google Cloud Load Balancing kimi sağlamlıq yoxlamasına əsaslanan trafik yönləndiricilərindən istifadə olunur.</p>
+  </div>
+
+  <p class="section-title">3 · Çox-region deploy nümunəsi</p>
+  <div class="card">
+    <h2>Addım 1 — Region-lar üçün provider alias-ları</h2>
+    <p>Eyni infrastrukturu iki region-da qurmaq üçün <code>aws</code> provider-inin iki alias-lı nüsxəsini yaradırıq.</p>
+    <pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-east-1"</span>
+  alias  = <span class="s">"us_east"</span>
+}
+
+<span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-west-1"</span>
+  alias  = <span class="s">"us_west"</span>
+}</code></pre>
+
+    <h2>Addım 2 — Hər iki region-da EC2 instance</h2>
+    <pre><code><span class="c"># US-East region-unda web server</span>
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"web_us_east"</span> {
+  provider      = aws.us_east
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  tags = {
+    Name = <span class="s">"WebServer-East"</span>
+  }
+}
+
+<span class="c"># US-West region-unda eyni web server</span>
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"web_us_west"</span> {
+  provider      = aws.us_west
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  tags = {
+    Name = <span class="s">"WebServer-West"</span>
+  }
+}</code></pre>
+    <p>Hər iki instance eyni tətbiqi xidmət edir — biri sıradan çıxsa, digəri yükü götürməyə hazırdır.</p>
+    <div class="warn">AMI ID-ləri region-a bağlıdır: <code>us-east-1</code> üçün keçərli olan ID <code>us-west-1</code>-də mövcud olmaya bilər. Hər region üçün AMI-ni <code>data "aws_ami"</code> ilə dinamik tapın və ya region → AMI xəritəsini <code>variable</code> kimi saxlayın. Sabit ID-ni kopyalamaq çox-region konfiqurasiyalarında ən çox təkrarlanan səhvdir.</div>
+
+    <h2>Addım 3 — Route 53 ilə DNS failover</h2>
+    <pre><code><span class="k">resource</span> <span class="s">"aws_route53_zone"</span> <span class="s">"example"</span> {
+  name = <span class="s">"example.com"</span>
+}
+
+<span class="c"># Əsas qeyd — sağlam olduqca bütün trafik buraya gedir</span>
+<span class="k">resource</span> <span class="s">"aws_route53_record"</span> <span class="s">"primary"</span> {
+  zone_id        = aws_route53_zone.example.zone_id
+  name           = <span class="s">"www.example.com"</span>
+  type           = <span class="s">"A"</span>
+  set_identifier = <span class="s">"primary"</span>
+
+  alias {
+    name                   = aws_lb.east.dns_name
+    zone_id                = aws_lb.east.zone_id
+    evaluate_target_health = <span class="k">true</span>
+  }
+
+  failover_routing_policy {
+    type = <span class="s">"PRIMARY"</span>
+  }
+}
+
+<span class="c"># Ehtiyat qeyd — əsas sağlamlıq yoxlamasından keçmədikdə işə düşür</span>
+<span class="k">resource</span> <span class="s">"aws_route53_record"</span> <span class="s">"secondary"</span> {
+  zone_id        = aws_route53_zone.example.zone_id
+  name           = <span class="s">"www.example.com"</span>
+  type           = <span class="s">"A"</span>
+  set_identifier = <span class="s">"secondary"</span>
+
+  alias {
+    name                   = aws_lb.west.dns_name
+    zone_id                = aws_lb.west.zone_id
+    evaluate_target_health = <span class="k">true</span>
+  }
+
+  failover_routing_policy {
+    type = <span class="s">"SECONDARY"</span>
+  }
+}</code></pre>
+    <p>Burada Route 53 failover routing rejimində qurulub: normal vəziyyətdə trafik US-East-dəki əsas nüsxəyə gedir; sağlamlıq yoxlaması uğursuz olanda isə DNS cavabı avtomatik olaraq US-West-dəki ehtiyat nüsxəyə keçir.</p>
+    <div class="note">Alias qeydləri load balancer, CloudFront və ya S3 website endpoint kimi AWS resurslarına yönəlir — birbaşa EC2 IP ünvanına yox. EC2 instance-a yönləndirmək lazımdırsa, alias əvəzinə adi <code>records = [aws_instance.web.public_ip]</code> ilə A qeydi və ayrıca <code>aws_route53_health_check</code> resursu işlədin.</div>
+    <div class="warn">DNS failover ani deyil: TTL müddəti bitənə qədər köhnə cavab client-lərdə keşdə qalır. TTL-i 60 saniyəyə salmaq keçidi sürətləndirir, amma sıfır dayanma müddəti vəd etmir. RTO hesablayarkən TTL-i mütləq nəzərə alın.</div>
+  </div>
+
+  <p class="section-title">4 · Backup və replikasiyanın avtomatlaşdırılması</p>
+  <div class="card">
+    <h2>a. RDS backup-ları</h2>
+    <p>Bulud provider-lərinin öz backup vasitələri var: AWS RDS snapshot-ları, Azure Backup, Google Cloud Persistent Disk snapshot-ları. Terraform bunları konfiqurasiya səviyyəsində idarə edir.</p>
+    <pre><code><span class="k">resource</span> <span class="s">"aws_db_instance"</span> <span class="s">"mydb"</span> {
+  allocated_storage = 20
+  engine            = <span class="s">"mysql"</span>
+  instance_class    = <span class="s">"db.t2.micro"</span>
+  db_name           = <span class="s">"mydb"</span>
+  username          = <span class="s">"admin"</span>
+  password          = var.db_password
+
+  backup_retention_period = 7             <span class="c"># backup-ları 7 gün saxla</span>
+  backup_window           = <span class="s">"01:00-03:00"</span>  <span class="c"># yükün az olduğu saatlar</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_db_snapshot"</span> <span class="s">"mydb_snapshot"</span> {
+  db_instance_identifier = aws_db_instance.mydb.id
+  db_snapshot_identifier = <span class="s">"mydb-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"</span>
+}</code></pre>
+    <p>Bu konfiqurasiyada RDS instance-ı avtomatik backup ilə yaradılır və nüsxələr 7 gün saxlanılır; əlavə olaraq tələb üzrə vaxt möhürlü manual snapshot alınır.</p>
+    <div class="warn"><code>timestamp()</code> funksiyası hər <code>plan</code>-da yeni dəyər qaytarır, ona görə snapshot resursu hər dəfə yenidən yaradılmaq üçün planlanır. Müntəzəm snapshot-lar üçün Terraform-u zamanlayıcı kimi işlətməyin — <code>backup_retention_period</code> ilə avtomatik backup-a və ya AWS Backup plan-larına arxalanın.</div>
+
+    <h2>b. S3 lifecycle qaydaları</h2>
+    <p>Obyekt saxlanması üçün lifecycle qaydaları datanı avtomatik olaraq ucuz saxlama sinifinə köçürür və müddəti bitmişləri silir.</p>
+    <pre><code><span class="k">resource</span> <span class="s">"aws_s3_bucket"</span> <span class="s">"my_bucket"</span> {
+  bucket = <span class="s">"my-backup-bucket"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_s3_bucket_lifecycle_configuration"</span> <span class="s">"backup_lifecycle"</span> {
+  bucket = aws_s3_bucket.my_bucket.id
+
+  rule {
+    id     = <span class="s">"archive-and-expire"</span>
+    status = <span class="s">"Enabled"</span>
+
+    transition {
+      days          = 30
+      storage_class = <span class="s">"GLACIER"</span>  <span class="c"># 30 gündən sonra Glacier-ə keçir</span>
+    }
+
+    expiration {
+      days = 365                  <span class="c"># 365 gündən sonra sil</span>
+    }
+  }
+}</code></pre>
+    <p>Nəticədə data 30 gün sonra uzunmüddətli və ucuz Glacier saxlamasına keçir, 365 gündən sonra isə silinərək həm xərci azaldır, həm də datanın sonsuz saxlanmasının qarşısını alır.</p>
+    <div class="tip">Köhnə <code>lifecycle_rule</code> bloku birbaşa <code>aws_s3_bucket</code> daxilində yazılırdı; AWS provider 4.x-dən sonra o, ayrıca <code>aws_s3_bucket_lifecycle_configuration</code> resursuna ayrıldı. Köhnə nümunələri kopyalayarkən bu fərqə diqqət edin.</div>
+  </div>
+
+  <p class="section-title">5 · Kubernetes üçün DR</p>
+  <div class="card">
+    <h2>Çox-AZ EKS klasteri</h2>
+    <p>Konteynerləşdirilmiş tətbiqlər üçün Kubernetes klasterinin özü də DR planına daxil olmalıdır. Terraform ilə klasteri bir neçə availability zone arasında paylanmış şəkildə qurmaq mümkündür.</p>
+    <pre><code><span class="k">resource</span> <span class="s">"aws_eks_cluster"</span> <span class="s">"my_cluster"</span> {
+  name     = <span class="s">"my-eks-cluster"</span>
+  role_arn = aws_iam_role.eks_role.arn
+
+  vpc_config {
+    <span class="c"># subnet-lər müxtəlif AZ-lərdə yerləşir</span>
+    subnet_ids = aws_subnet.my_subnets[*].id
+  }
+}
+
+<span class="k">resource</span> <span class="s">"aws_eks_node_group"</span> <span class="s">"my_node_group"</span> {
+  cluster_name    = aws_eks_cluster.my_cluster.name
+  node_role_arn   = aws_iam_role.node_role.arn
+  subnet_ids      = aws_subnet.my_subnets[*].id
+
+  scaling_config {
+    desired_size = 3
+    max_size     = 5
+    min_size     = 1
+  }
+}</code></pre>
+    <p>Subnet-lər müxtəlif zonalarda olduğu üçün node group da zonalar arasında paylanır: bir zona sıradan çıxdıqda həm control plane, həm də qalan worker node-lar işləməyə davam edir.</p>
+    <div class="note">Klasterin özünün ayaqda qalması hələ tətbiqin ayaqda qalması demək deyil. Pod-ların bir zonada toplanmaması üçün <code>topologySpreadConstraints</code>, kritik xidmətlər üçün isə <code>PodDisruptionBudget</code> təyin edin — bunlar Terraform-un yox, Kubernetes manifest-lərinin işidir.</div>
+    <div class="warn">Klaster resursları Terraform-dadır, amma klaster daxilindəki state (PersistentVolume, etcd-dəki obyektlər) yox. Namespace və manifest-lərin bərpası üçün Velero kimi ayrıca backup həlli lazımdır — <code>terraform apply</code> tək başına klasteri əvvəlki vəziyyətinə qaytarmır.</div>
+  </div>
+
+  <p class="section-title">6 · Əməli qaydalar</p>
+  <div class="card">
+    <h2>a. DR planını müntəzəm sına</h2>
+    <p>Sınanmamış DR planı plan deyil, ümiddir. Kəsintiləri süni şəkildə modelləşdirin: əsas region-u söndürün, failover-in işlədiyini, backup-dan bərpanın tamamlandığını və failback-in problemsiz olduğunu yoxlayın. Bərpa vaxtını ölçün və elan etdiyiniz RTO ilə müqayisə edin.</p>
+
+    <h2>b. Backup prosesini avtomatlaşdır</h2>
+    <p>Backup-ı əl ilə aparmaq insan səhvinə açıq qapıdır. Bulud-nativ vasitələr və Terraform ilə avtomatlaşdırılmış müntəzəm backup həm riski azaldır, həm də bərpa anında ən yeni datanın mövcudluğunu təmin edir.</p>
+
+    <h2>c. Xərcə nəzarət et</h2>
+    <p>Çox-region DR bahalıdır — ikinci region-da işləyən boş sərvətlər aylıq hesabı ikiqat edə bilər. AWS Budgets və ya Azure Cost Management ilə DR xərcini ayrıca izləyin.</p>
+    <table>
+      <tr><th>DR modeli</th><th>Ehtiyat mühit</th><th>RTO</th><th>Nisbi xərc</th></tr>
+      <tr><td>Backup &amp; restore</td><td>Yalnız backup saxlanır</td><td>Saatlar</td><td>Ən aşağı</td></tr>
+      <tr><td>Pilot light</td><td>Yalnız data qatı işləyir</td><td>Onlarla dəqiqə</td><td>Aşağı</td></tr>
+      <tr><td>Warm standby</td><td>Kiçik ölçüdə tam nüsxə</td><td>Dəqiqələr</td><td>Orta</td></tr>
+      <tr><td>Active-active</td><td>Hər iki region tam yüklə</td><td>Saniyələr</td><td>Ən yüksək</td></tr>
+    </table>
+    <div class="tip">Bu dörd model arasında seçim tamamilə RTO/RPO tələbindən asılıdır. Əksər dev və daxili sistemlər üçün "backup &amp; restore" kifayətdir; "active-active" yalnız kəsintinin dəqiqəsi ciddi zərər gətirən sistemlərə lazımdır.</div>
+
+    <div class="ai">AI ilə iş: DR konfiqurasiyası soruşarkən RTO və RPO rəqəmlərinizi prompt-a daxil edin — "RPO 15 dəqiqə, RTO 1 saat olan iki region-lu AWS quruluşu". Rəqəmlər olmadan model adətən ən bahalı active-active variantı təklif edir. Yaradılan planı həmişə <code>terraform plan</code> ilə yoxlayın: DR resursları çox vaxt gözlənilməz xərc gətirir.</div>
+  </div>
+
+  <p class="section-title">7 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>DR üç sütun üzərində dayanır: yüksək əlçatanlıq, müntəzəm backup və işlək failover/failback mexanizmi.</li>
+      <li>Çox-region quruluş <code>alias</code>-lı provider blokları ilə qurulur; AMI kimi region-a bağlı dəyərləri sabit yazmaq yox, dinamik tapmaq lazımdır.</li>
+      <li>Route 53 failover routing sağlamlıq yoxlamasına əsaslanır, lakin DNS TTL keçidi ləngidir — RTO hesabında bunu nəzərə alın.</li>
+      <li>Backup-ı <code>backup_retention_period</code> və S3 lifecycle qaydaları ilə avtomatlaşdırın; Terraform-u snapshot zamanlayıcısı kimi işlətməyin.</li>
+      <li>Kubernetes-də çox-AZ klaster infrastrukturu qoruyur, klaster daxilindəki datanı yox — Velero kimi ayrıca backup həlli lazımdır.</li>
+      <li>Sınanmamış DR planı işləmir: kəsintini süni modelləşdirin, bərpa vaxtını ölçün, RTO/RPO ilə tutuşdurun.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="10-multicloud.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Multi-Cloud Deploy</div></a>
+    <a href="12-hybrid-cloud.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Hibrid Cloud</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

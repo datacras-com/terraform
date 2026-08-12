@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CI/CD İnteqrasiyası · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 9</div>
+  <h1>CI/CD İnteqrasiyası</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Terraform-un gücü onu əl ilə deyil, avtomat pipeline vasitəsilə işlətdikdə tam açılır. Bu fəsildə Terraform-u GitHub Actions, Jenkins və GitLab CI ilə birləşdirməyi, plan və apply mərhələlərini ayırmağı, secret-ləri təhlükəsiz saxlamağı və prod üçün təsdiq mərhələsi qurmağı öyrənəcəyik.</div>
+
+  <p class="section-title">1 · CI/CD inteqrasiyasının faydaları</p>
+  <div class="card">
+    <h2>Niyə pipeline?</h2>
+    <p>Terraform-u CI/CD ilə birləşdirmək bir neçə konkret üstünlük verir:</p>
+    <ul>
+      <li><strong>Avtomatlaşdırma:</strong> infrastruktur kod dəyişikliyinə əsasən avtomatik qurulur, əl işi minimuma enir.</li>
+      <li><strong>Ardıcıllıq:</strong> hər deploy eyni addımlarla, eyni mühitdə keçir — "mənim maşınımda işləyirdi" problemi aradan qalxır.</li>
+      <li><strong>Birgə iş:</strong> bütün dəyişikliklər Git üzərindən keçir, izlənilir və nəzərdən keçirilir.</li>
+      <li><strong>Test və yoxlama:</strong> pipeline dəyişikliyi tətbiq etməzdən əvvəl <code>terraform validate</code> və <code>terraform plan</code> ilə yoxlaya bilir, səhv konfiqurasiya riski azalır.</li>
+      <li><strong>Geri qayıtma:</strong> nəsə səhv gedərsə, əvvəlki commit-ə qayıdıb pipeline-ı yenidən işə salmaqla infrastrukturu bərpa etmək olur.</li>
+    </ul>
+
+    <div class="note">CI/CD Terraform-un məsuliyyətini azaltmır — əksinə artırır. Avtomat pipeline səhv konfiqurasiyanı da eyni sürətlə tətbiq edəcək. Ona görə plan-ın nəzərdən keçirilməsi və prod üçün təsdiq mərhələsi pipeline-ın ayrılmaz hissəsidir.</div>
+  </div>
+
+  <p class="section-title">2 · Terraform və GitHub Actions</p>
+  <div class="card">
+    <h2>Workflow qurmaq</h2>
+    <p>GitHub Actions workflow-ları repository-nin <code>.github/workflows/</code> qovluğunda saxlanılır. İnfrastruktur kodunda dəyişiklik olanda (məsələn, pull request merge ediləndən sonra) Terraform-u işə salmaq üçün belə bir fayl yazılır.</p>
+
+    <p><strong>Fayl:</strong> <code>.github/workflows/terraform.yml</code></p>
+
+<pre><code><span class="k">name</span>: Terraform
+
+<span class="k">on</span>:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+<span class="k">jobs</span>:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      <span class="c"># Repository kodunu runner-ə çək</span>
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      <span class="c"># Terraform CLI-ı quraşdır</span>
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      - name: Initialize Terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        run: terraform plan
+
+      <span class="c"># apply yalnız main-ə push olanda işləyir</span>
+      - name: Terraform Apply
+        if: github.event_name == <span class="s">'push'</span>
+        run: terraform apply -auto-approve</code></pre>
+
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li>Workflow <code>main</code> branch-ına push və ya pull request zamanı işə düşür.</li>
+      <li>Kod çəkilir, Terraform quraşdırılır, sonra <code>init</code> və <code>plan</code> icra olunur.</li>
+      <li><code>main</code>-ə push olduqda <code>apply</code> avtomatik işləyərək dəyişiklikləri tətbiq edir.</li>
+    </ul>
+
+    <h3>Secret-lərin saxlanması</h3>
+    <p>Giriş açarları və API token-ləri kimi həssas məlumatlar GitHub Secrets vasitəsilə saxlanılmalıdır. Repository-də <em>Settings → Secrets and variables → Actions</em> bölməsindən əlavə edin, sonra workflow-da mühit dəyişəni kimi istifadə edin:</p>
+
+<pre><code><span class="k">env</span>:
+  AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}</code></pre>
+
+    <div class="tip">Uzunmüddətli açar əvəzinə OIDC ilə müvəqqəti giriş qurmaq daha təhlükəsizdir: GitHub Actions AWS-ə birbaşa IAM rolu ilə qoşulur və repository-də heç bir daimi açar saxlanmır.</div>
+
+    <h2>Plan və apply-ın ayrılması</h2>
+    <p>Tipik iş axınında <code>terraform plan</code> hər pull request üçün işləyərək dəyişikliyi göstərir, amma tətbiq etmir. <code>terraform apply</code> isə yalnız dəyişiklik <code>main</code>-ə merge olunandan sonra işləyir.</p>
+
+<pre><code>- name: Terraform Plan
+  run: terraform plan
+  if: github.event_name == <span class="s">'pull_request'</span>
+
+- name: Terraform Apply
+  run: terraform apply -auto-approve
+  if: github.event_name == <span class="s">'push'</span></code></pre>
+
+    <p>Bu quruluş infrastruktur dəyişikliklərinin yalnız kod nəzərdən keçirildikdən və merge edildikdən sonra tətbiq olunmasını təmin edir.</p>
+
+    <div class="warn"><code>-auto-approve</code> təsdiq soruşmadan tətbiq edir. Bu, avtomat pipeline üçün lazımdır, amma o deməkdir ki, pipeline-a çatan hər plan tətbiq olunacaq. Prod üçün mütləq təsdiq mərhələsi və ya <code>-out=tfplan</code> ilə yazılmış planın yenidən istifadəsi qurulmalıdır.</div>
+  </div>
+
+  <p class="section-title">3 · Terraform və Jenkins</p>
+  <div class="card">
+    <h2>Jenkins pipeline qurmaq</h2>
+    <p>Jenkins də Terraform iş axınını avtomatlaşdırmaq üçün geniş işlədilən vasitədir. Pipeline vasitəsilə konfiqurasiyanı yoxlamaq, plan qurmaq və tətbiq etmək olur.</p>
+
+    <h3>1. Terraform plugin-i quraşdırın</h3>
+    <p>Jenkins-in Terraform plugin-i inteqrasiyanı asanlaşdırır: <em>Manage Jenkins → Manage Plugins → Available</em> bölməsində "Terraform" axtarıb quraşdırın.</p>
+
+    <h3>2. Pipeline yaradın</h3>
+    <p>Jenkins-də yeni pipeline job yaradın və addımları <code>Jenkinsfile</code>-da təsvir edin.</p>
+
+<pre><code>pipeline {
+  agent any
+
+  stages {
+    stage(<span class="s">'Checkout'</span>) {
+      steps {
+        checkout scm
+      }
+    }
+    stage(<span class="s">'Terraform Init'</span>) {
+      steps {
+        sh <span class="s">'terraform init'</span>
+      }
+    }
+    stage(<span class="s">'Terraform Plan'</span>) {
+      steps {
+        sh <span class="s">'terraform plan'</span>
+      }
+    }
+    stage(<span class="s">'Terraform Apply'</span>) {
+      <span class="c">// yalnız main branch-da işləyir</span>
+      when {
+        branch <span class="s">'main'</span>
+      }
+      steps {
+        sh <span class="s">'terraform apply -auto-approve'</span>
+      }
+    }
+  }
+}</code></pre>
+
+    <p>Bu nümunədə pipeline kodu repository-dən çəkir, <code>terraform init</code> ilə hazırlıq görür, <code>terraform plan</code> ilə dəyişiklikləri yoxlayır və <code>apply</code>-ı yalnız <code>main</code> branch-ında icra edir.</p>
+
+    <h3>3. Credentials saxlamaq</h3>
+    <p>Bulud provider-inin giriş açarlarını Jenkins Credentials-da saxlayın: <em>Manage Jenkins → Manage Credentials</em>. Sonra pipeline-da bu credential-lara mühit dəyişəni vasitəsilə istinad edin:</p>
+
+<pre><code>environment {
+  AWS_ACCESS_KEY_ID     = credentials(<span class="s">'aws-access-key-id'</span>)
+  AWS_SECRET_ACCESS_KEY = credentials(<span class="s">'aws-secret-access-key'</span>)
+}</code></pre>
+  </div>
+
+  <p class="section-title">4 · Terraform və GitLab CI</p>
+  <div class="card">
+    <h2>.gitlab-ci.yml faylı</h2>
+    <p>GitLab CI GitLab-a daxil olan CI/CD vasitəsidir və konfiqurasiya repository-nin kök qovluğundakı <code>.gitlab-ci.yml</code> faylında təsvir edilir.</p>
+
+<pre><code><span class="k">image</span>: hashicorp/terraform:latest
+
+<span class="k">stages</span>:
+  - validate
+  - plan
+  - apply
+
+<span class="c"># Hər job-dan əvvəl init işləyir</span>
+<span class="k">before_script</span>:
+  - terraform init
+
+validate:
+  stage: validate
+  script:
+    - terraform validate
+
+plan:
+  stage: plan
+  script:
+    - terraform plan
+  <span class="c"># plan yalnız merge request üçün</span>
+  only:
+    - merge_requests
+
+apply:
+  stage: apply
+  script:
+    - terraform apply -auto-approve
+  <span class="c"># apply yalnız əsas branch-da</span>
+  only:
+    - master</code></pre>
+
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li>Pipeline üç mərhələdən ibarətdir: <code>validate</code>, <code>plan</code>, <code>apply</code>.</li>
+      <li><code>terraform validate</code> ilk mərhələdə işləyərək sintaksisi yoxlayır.</li>
+      <li><code>terraform plan</code> yalnız merge request-lər üçün işləyir və dəyişikliyi əvvəlcədən göstərir.</li>
+      <li><code>terraform apply</code> yalnız əsas branch-da işləyir — yəni dəyişiklik merge olunandan sonra.</li>
+    </ul>
+
+    <h3>Secret idarəçiliyi</h3>
+    <p>Həssas dəyərləri GitLab CI dəyişənləri kimi saxlayın: <em>Settings → CI/CD → Variables</em>. Dəyişəni <em>Masked</em> və <em>Protected</em> kimi işarələyin ki, log-da görünməsin və yalnız qorunan branch-larda əlçatan olsun.</p>
+
+    <div class="note">GitLab həm də daxili Terraform state backend təklif edir — ayrıca S3 bucket qurmadan state-i GitLab-da saxlamaq və kilidləmək olur. Kiçik komandalar üçün bu, quraşdırmanı əhəmiyyətli dərəcədə sadələşdirir.</div>
+  </div>
+
+  <p class="section-title">5 · Alətlərin müqayisəsi</p>
+  <div class="card">
+    <table>
+      <tr><th>Xüsusiyyət</th><th>GitHub Actions</th><th>Jenkins</th><th>GitLab CI</th></tr>
+      <tr><td>Konfiqurasiya faylı</td><td><code>.github/workflows/*.yml</code></td><td><code>Jenkinsfile</code></td><td><code>.gitlab-ci.yml</code></td></tr>
+      <tr><td>Hosting</td><td>Bulud (və ya self-hosted runner)</td><td>Özün qurursan</td><td>Bulud və ya self-hosted</td></tr>
+      <tr><td>Secret saxlama</td><td>GitHub Secrets</td><td>Jenkins Credentials</td><td>CI/CD Variables</td></tr>
+      <tr><td>Branch filtri</td><td><code>if: github.ref</code></td><td><code>when { branch }</code></td><td><code>only</code> / <code>rules</code></td></tr>
+      <tr><td>Terraform state dəstəyi</td><td>Xarici backend</td><td>Xarici backend</td><td>Daxili backend var</td></tr>
+      <tr><td>Uyğun olduğu hal</td><td>GitHub-da olan layihələr</td><td>Mürəkkəb, öz mühitində qurulan pipeline-lar</td><td>GitLab ekosistemi</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">6 · Pipeline üçün best practice</p>
+  <div class="card">
+    <h2>a. Mühitləri ayırın</h2>
+    <p>CI/CD ilə deploy edərkən dev, staging və prod üçün ayrı pipeline və ya ayrı workspace işlədin. Bu, dəyişikliyin prod-a çıxmazdan əvvəl staging-də sınaqdan keçməsini təmin edir.</p>
+
+<pre><code>- name: Terraform Apply (Staging)
+  run: terraform workspace select staging &amp;&amp; terraform apply -auto-approve
+
+- name: Terraform Apply (Prod)
+  run: terraform workspace select production &amp;&amp; terraform apply -auto-approve</code></pre>
+
+    <h2>b. Təsdiq mərhələsi qurun</h2>
+    <p>Prod mühiti üçün <code>terraform apply</code>-dan əvvəl təsdiq (approval gate) əlavə edin. Beləliklə, infrastruktur dəyişikliyi tətbiq olunmazdan əvvəl komanda üzvü tərəfindən nəzərdən keçirilir.</p>
+
+<pre><code><span class="k">jobs</span>:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Terraform Apply
+        <span class="c"># yalnız əl ilə başladılanda tətbiq olunur</span>
+        if: github.event_name == <span class="s">'workflow_dispatch'</span>
+        run: terraform apply -auto-approve</code></pre>
+
+    <p>Bu konfiqurasiya tətbiqin əl ilə işə salınmasını tələb edir — prod dəyişiklikləri avtomatik keçmir.</p>
+
+    <div class="tip">GitHub Actions-da bunun daha güclü variantı <em>Environment protection rules</em>-dır: prod adlı environment yaradıb ona təsdiq verəcək məsul şəxs (reviewer) təyin edirsiniz. Job həmin environment-ə istinad edəndə pipeline dayanır və təsdiq gözləyir.</div>
+
+    <h2>c. Avtomat test işlədin</h2>
+    <p>Dəyişikliyi tətbiq etməzdən əvvəl konfiqurasiyanı avtomat testlərlə yoxlayın. 7-ci fəsildə baxdığımız Terratest və ya InSpec kimi vasitələr infrastrukturun gözlənilən kimi işlədiyini təsdiqləyir.</p>
+
+    <h3>Tövsiyə olunan pipeline ardıcıllığı</h3>
+    <table>
+      <tr><th>Mərhələ</th><th>Əmr</th><th>Nə vaxt işləyir</th></tr>
+      <tr><td>Format</td><td><code>terraform fmt -check</code></td><td>Hər commit</td></tr>
+      <tr><td>Validate</td><td><code>terraform validate</code></td><td>Hər commit</td></tr>
+      <tr><td>Lint / təhlükəsizlik</td><td><code>tflint</code>, <code>tfsec</code></td><td>Hər pull request</td></tr>
+      <tr><td>Plan</td><td><code>terraform plan -out=tfplan</code></td><td>Hər pull request</td></tr>
+      <tr><td>Test</td><td>Terratest / InSpec</td><td>Merge-dən əvvəl</td></tr>
+      <tr><td>Apply</td><td><code>terraform apply tfplan</code></td><td>Merge-dən sonra (prod üçün təsdiqlə)</td></tr>
+    </table>
+
+    <div class="ai">Pipeline yazarkən AI köməkçisindən istifadə edirsinizsə, ondan yalnız YAML sintaksisini deyil, təhlükəsizlik nəzərdən keçirməsini də istəyin: "bu workflow-da secret sızma riski varmı, apply hansı şərtlərdə işləyir?" sualı çox vaxt <code>if</code> şərtində unudulmuş boşluğu üzə çıxarır.</div>
+  </div>
+
+  <p class="section-title">7 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li><strong>Plan və apply ayrılmalıdır:</strong> <code>plan</code> pull request-də, <code>apply</code> merge-dən sonra. Bu bölgü infrastruktur dəyişikliyini nəzərdən keçirilmiş kodla məhdudlaşdırır.</li>
+      <li><strong>Secret pipeline konfiqurasiyasında yazılmır:</strong> GitHub Secrets, Jenkins Credentials və ya GitLab CI Variables işlədin — mümkünsə OIDC ilə müvəqqəti giriş qurun.</li>
+      <li><strong>Prod təsdiq tələb edir:</strong> <code>-auto-approve</code> prod-a birbaşa yol açır; təsdiq mərhələsi və ya əl ilə tetikləmə mütləqdir.</li>
+      <li><strong>Mühitlər ayrı olsun:</strong> ayrı workspace və ya ayrı pipeline — dev-də sınanmamış heç nə prod-a getməsin.</li>
+      <li><strong>Ardıcıllıq vacibdir:</strong> fmt → validate → lint → plan → test → apply. Ucuz yoxlamalar əvvəldə, bahalı olanlar sonda.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="08-best-practice.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Best Practice və Qabaqcıl Üsullar</div></a>
+    <a href="10-multicloud.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Multi-Cloud Deploy</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

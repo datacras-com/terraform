@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan: vCenter-də Terraform ilə VM · DPE-07</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #F7F9F8; color: #0F172A; line-height: 1.65; }
+  header { background: #0F172A; padding: 28px 48px 24px; border-bottom: 3px solid #00A859; }
+  header h1 { color: #00A859; font-size: 1.45rem; font-weight: 700; }
+  header p { color: #848688; font-size: 0.82rem; margin-top: 5px; }
+  .badge { display:inline-block; background:#3B82F6; color:#fff; font-size:0.68rem; font-weight:600; padding:2px 8px; border-radius:10px; margin-left:8px; vertical-align:middle; }
+  main { max-width: 900px; margin: 36px auto; padding: 0 24px; }
+  .intro { background:#fff; border:1px solid #E2E8F0; border-left:4px solid #3B82F6; padding:16px 20px; border-radius:0 8px 8px 0; margin-bottom:28px; font-size:0.9rem; color:#334155; }
+  .section-title { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:#848688; margin:32px 0 14px; }
+  .card { background:#fff; border:1px solid #E2E8F0; border-radius:10px; padding:18px 22px; margin-bottom:16px; }
+  .card h2 { font-size:1rem; color:#00703A; margin-bottom:8px; }
+  .card p, .card li { font-size:0.87rem; color:#334155; }
+  .card ul, .card ol { padding-left:22px; margin:8px 0; }
+  .card li { margin-bottom:6px; }
+  table { font-size:0.83rem; border-collapse:collapse; width:100%; margin:10px 0; }
+  th { background:#0F172A; color:#A7F3D0; padding:7px 12px; text-align:left; }
+  td { border:1px solid #E2E8F0; padding:7px 12px; background:#fff; vertical-align:top; }
+  tr:nth-child(even) td { background:#F8FAFC; }
+  code { background:#E8F5EE; color:#00703A; padding:2px 6px; border-radius:4px; font-size:0.82em; border:1px solid #C3E4D0; font-family:'SF Mono',Menlo,Consolas,monospace; }
+  pre { background:#1E293B; color:#E2E8F0; padding:12px 16px; border-radius:8px; border-left:4px solid #00A859; font-size:0.78rem; line-height:1.55; margin:10px 0; overflow-x:auto; color-scheme:dark; font-family:'SF Mono',Menlo,Consolas,monospace; }
+  pre code { background:transparent; color:#E2E8F0; border:0; padding:0; font-size:1em; }
+  pre .c { color:#64748B; } pre .k { color:#C084FC; } pre .s { color:#FBBF24; }
+  .tip { background:#F0FAF4; border:1px solid #C3E4D0; border-left:4px solid #00A859; padding:10px 14px; border-radius:0 6px 6px 0; margin:12px 0; font-size:0.85rem; }
+  .warn { background:#FFF8E1; border:1px solid #FDE68A; border-left:4px solid #F59E0B; padding:10px 14px; border-radius:0 6px 6px 0; margin:12px 0; font-size:0.85rem; color:#78350F; }
+  .ai { background:#F3E8FF; border:1px solid #D8B4FE; border-left:4px solid #9333EA; padding:10px 14px; border-radius:0 6px 6px 0; margin:12px 0; font-size:0.85rem; color:#581C87; }
+  .fill { background:#EFF6FF; border:1px dashed #93C5FD; border-radius:6px; padding:2px 10px; font-family:'SF Mono',Menlo,monospace; font-size:0.8em; color:#1D4ED8; }
+  .arch { background:#FBFDFF; border:2px dashed #3B82F6; border-radius:12px; padding:12px 14px; margin:12px 0; }
+  .box { border-radius:10px; padding:9px 12px; }
+  .flow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .flow .step { background:#fff; border:1.5px solid #CBD5E1; border-radius:8px; padding:6px 12px; font-size:0.78rem; font-weight:600; }
+  footer { text-align:center; padding:24px; color:#848688; font-size:0.75rem; border-top:1px solid #E2E8F0; margin-top:30px; }
+  a { color:#00A859; font-weight:600; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Plan: vCenter-də Terraform ilə VM <span class="badge">PLAN</span></h1>
+  <p>DPE-07 · On-prem praktika · AWS VPC planının vSphere qarşılığı</p>
+</header>
+
+<main>
+
+  <div class="intro">
+    AWS tərəfdə əvvəlcə <b>memarlıq şəkli</b> çəkdik (VPC → subnet → IGW → route table), sonra kod yazdıq.
+    Burada da eyni ardıcıllıq: <b>əvvəl plan, sonra kod</b>. Fərq budur ki, cloud-da təməli Amazon verirdi —
+    on-prem-də təməli <b>biz özümüz</b> qururuq, Terraform isə onun üstündə VM-i yaradır.
+    Bu sənəd üç suala cavab verir: <b>(1)</b> nə lazımdır, <b>(2)</b> nəyi Terraform yaradır, <b>(3)</b> hansı məlumatları toplamalıyıq.
+  </div>
+
+  <p class="section-title">1 · Məqsəd — nə quracağıq?</p>
+  <div class="card">
+    <p><b>Bir "data pipeline VM":</b> Ubuntu template-indən clone edilmiş, 2 vCPU / 4 GB RAM / 40 GB disk,
+       şəbəkəyə qoşulu, adı və ölçüləri <b>dəyişənlərdən</b> gələn VM. AWS lab-ındakı məntiqin eynisi:
+       əvvəl bir ədəd, sonra <code>count</code>/<code>for_each</code> ilə "fleet".</p>
+    <div class="flow" style="margin-top:10px;">
+      <span class="step">👤 Data Platform Engineer</span><span>→</span>
+      <span class="step">📝 Terraform kodu</span><span>→</span>
+      <span class="step">🔍 data source-lar (tapır)</span><span>→</span>
+      <span class="step" style="border-color:#00A859; color:#00703A;">✚ vsphere_virtual_machine (yaradır)</span><span>→</span>
+      <span class="step">🖥️ İşlək VM</span>
+    </div>
+  </div>
+
+  <p class="section-title">2 · Memarlıq — vSphere obyekt iyerarxiyası</p>
+  <div class="card">
+    <div class="arch">
+      <div style="font-size:0.78rem; font-weight:700; color:#1D4ED8;">🏢 vCenter Server <span style="font-weight:400; color:#64748B;">— idarəetmə mərkəzi (Terraform buraya qoşulur)</span></div>
+      <div class="box" style="border:2px solid #7B42BC; margin-top:8px;">
+        <div style="font-size:0.76rem; font-weight:700; color:#7E22CE;">📍 Datacenter <span style="font-weight:400; color:#64748B;">— məntiqi qrup (məs. "Datacenter")</span></div>
+        <div class="box" style="border:2px solid #00A859; margin-top:8px;">
+          <div style="font-size:0.76rem; font-weight:700; color:#00703A;">🧩 Cluster / ESXi Host <span style="font-weight:400; color:#64748B;">— VM-in işləyəcəyi dəmir</span></div>
+          <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">
+            <div class="box" style="border:1.5px solid #F59E0B; background:#FFF8E1; flex:1; min-width:180px;">
+              <div style="font-size:0.72rem; font-weight:700; color:#B45309;">💾 Datastore</div>
+              <div style="font-size:0.7rem; color:#78350F;">VM-in diski (VMDK) burada yaşayır</div>
+            </div>
+            <div class="box" style="border:1.5px solid #3B82F6; background:#EFF6FF; flex:1; min-width:180px;">
+              <div style="font-size:0.72rem; font-weight:700; color:#1D4ED8;">🌐 Port Group (VLAN)</div>
+              <div style="font-size:0.7rem; color:#1E3A5F;">VM-in qoşulduğu şəbəkə "rozetkası"</div>
+            </div>
+            <div class="box" style="border:1.5px solid #9333EA; background:#F3E8FF; flex:1; min-width:180px;">
+              <div style="font-size:0.72rem; font-weight:700; color:#7E22CE;">📀 VM Template</div>
+              <div style="font-size:0.7rem; color:#581C87;">Hazır OS obrazı — clone mənbəyi</div>
+            </div>
+          </div>
+          <div class="box" style="border:2px solid #0F172A; background:#0F172A; margin-top:8px; text-align:center;">
+            <div style="font-size:0.74rem; font-weight:700; color:#A7F3D0;">🖥️ VM: dcras-pipeline-01 — 2 vCPU · 4 GB · 40 GB</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tip">✅ Oxunuşu: Terraform vCenter-ə qoşulur → Datacenter-i tapır → içindən datastore, şəbəkə və template-i tapır → bunların üstündə <b>VM yaradır</b>. Yalnız sonuncu addım "yaratmaqdır", qalanı <b>tapmaqdır</b>.</div>
+  </div>
+
+  <p class="section-title">3 · AWS ↔ vSphere paralelləri</p>
+  <div class="card">
+    <table>
+      <tr><th style="width:30%;">AWS-də (öyrəndiyimiz)</th><th style="width:32%;">vSphere-də qarşılığı</th><th>Fərq</th></tr>
+      <tr><td>Region</td><td>vCenter + Datacenter</td><td>Coğrafi yox, sənin idarə etdiyin mühit</td></tr>
+      <tr><td>Availability Zone</td><td>Cluster / ESXi host</td><td>Redundantlıq host sayından asılıdır</td></tr>
+      <tr><td>VPC + Subnet</td><td>Port Group (+ VLAN)</td><td>Şəbəkəni Terraform yox, şəbəkə komandası qurur</td></tr>
+      <tr><td>Security Group</td><td>Firewall / NSX (bu labda yox)</td><td>Sadə mühitdə VM-in öz OS firewall-u</td></tr>
+      <tr><td>AMI</td><td>VM Template</td><td>Hazır kataloq yoxdur — template-i özün hazırlayırsan</td></tr>
+      <tr><td>EBS volume</td><td>Datastore-dakı VMDK disk</td><td>Ölçü + thin/thick seçimi</td></tr>
+      <tr><td>EC2 instance</td><td><code>vsphere_virtual_machine</code></td><td>CPU/RAM-ı rəqəmlə özün verirsən (instance tipi yoxdur)</td></tr>
+      <tr><td>IAM user + access key</td><td>vCenter istifadəçisi + parol</td><td><code>VSPHERE_*</code> env dəyişənləri ilə ötürülür</td></tr>
+      <tr><td>Key pair (SSH)</td><td>Template daxilindəki hesab / SSH açar</td><td>Customization ilə əlavə olunur</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">4 · Terraform-dan ƏVVƏL hazır olmalı (təməl)</p>
+  <div class="card">
+    <p>Bunları Terraform <b>yaratmır</b> — mövcud olmalıdır:</p>
+    <ol>
+      <li><b>vCenter quraşdırılıb</b> və ESXi host(lar) ona əlavə edilib</li>
+      <li><b>Datacenter</b> obyekti yaradılıb (adı lazım olacaq)</li>
+      <li><b>Datastore</b> qoşulub və boş yeri var (VM diski üçün ≥ 40 GB)</li>
+      <li><b>Port Group</b> (VM Network / VLAN) mövcuddur və işləkdir</li>
+      <li><b>VM Template</b> hazırdır: OS quraşdırılıb + <b>VMware Tools / open-vm-tools</b> quraşdırılıb (customization üçün şərtdir!), sonra "Convert to Template" edilib</li>
+      <li><b>Terraform üçün vCenter istifadəçisi</b> yaradılıb (VM yaratma icazələri ilə)</li>
+      <li><b>IP planı:</b> ya şəbəkədə DHCP var, ya da VM üçün boş static IP ayrılıb</li>
+    </ol>
+    <div class="warn">⚠️ <b>Ən çox unudulan:</b> template-də VMware Tools yoxdursa, guest customization (host adı, IP təyini) <b>işləmir</b> — VM yaranır, amma şəbəkəsiz/adsız qalır.</div>
+  </div>
+
+  <p class="section-title">4b · Ubuntu template-i necə hazırlanır? (addım-addım)</p>
+  <div class="card">
+    <p>AWS-də AMI hazır gəlirdi — burada <b>template-i özün hazırlayırsan</b>. Bir dəfə edirsən, sonra ondan yüzlərlə VM clone olunur.
+       Təxmini vaxt: <b>30–40 dəqiqə</b>.</p>
+
+    <h2 style="margin-top:14px;">Addım 1 — ISO-nu datastore-a yüklə</h2>
+    <ul>
+      <li><a href="https://releases.ubuntu.com/22.04/" target="_blank">Ubuntu Server 22.04 LTS</a> ISO-nu endir (~2 GB)</li>
+      <li>vCenter → <b>Storage</b> → datastore seç → <b>Files</b> → <b>Upload Files</b> → ISO-nu yüklə
+        <span style="color:#64748B;">(səliqə üçün əvvəlcə <code>iso/</code> qovluğu yarat)</span></li>
+    </ul>
+
+    <h2 style="margin-top:14px;">Addım 2 — Baza VM yarat</h2>
+    <ul>
+      <li>Datacenter-ə sağ klik → <b>New Virtual Machine</b> → <em>Create a new virtual machine</em></li>
+      <li>Ad: <code>ubuntu-2204-template-base</code> · Guest OS: <b>Linux → Ubuntu Linux (64-bit)</b></li>
+      <li>Resurslar: <b>2 vCPU · 2 GB RAM · 40 GB disk (Thin Provision)</b> — sonra clone zamanı böyüdülə bilər</li>
+      <li>CD/DVD: <b>Datastore ISO File</b> → yüklədiyin ISO → <b>Connect At Power On</b> ✅ qeyd et</li>
+      <li>Şəbəkə: template üçün istifadə edəcəyin <b>Port Group</b></li>
+    </ul>
+
+    <h2 style="margin-top:14px;">Addım 3 — OS-u quraşdır</h2>
+    <ul>
+      <li>VM-i işə sal → Ubuntu quraşdırıcısı: dil, klaviatura, şəbəkə (DHCP), disk (bütöv disk, LVM)</li>
+      <li>İstifadəçi yarat — məsələn <code>ubuntu</code> (parolu yadda saxla, clone-lar bunu miras alacaq)</li>
+      <li><b>"Install OpenSSH server"</b> seçimini mütləq işarələ ✅</li>
+      <li>Quraşdırma bitəndə: <b>Reboot</b> → ISO-nu ayır (CD/DVD → Disconnect)</li>
+    </ul>
+
+    <h2 style="margin-top:14px;">Addım 4 — VM-in içini hazırla <span style="font-size:0.78rem; color:#B45309;">(ən vacib addım)</span></h2>
+<pre><code><span class="c"># Sistemi yenilə</span>
+sudo apt update &amp;&amp; sudo apt upgrade -y
+
+<span class="c"># ŞƏRTDİR: bunsuz Terraform customization (host adı, IP) İŞLƏMİR</span>
+sudo apt install -y open-vm-tools cloud-init
+
+<span class="c"># Şablonu "təmiz" et — hər clone unikal olsun:</span>
+sudo cloud-init clean --logs                 <span class="c"># cloud-init tarixçəsi</span>
+sudo truncate -s 0 /etc/machine-id           <span class="c"># eyni machine-id = DHCP eyni IP verər!</span>
+sudo rm -f /var/lib/dbus/machine-id
+sudo ln -s /etc/machine-id /var/lib/dbus/machine-id
+
+<span class="c"># SSH host açarlarını sil (hər VM özünü yenidən yaratsın)</span>
+sudo rm -f /etc/ssh/ssh_host_*
+
+<span class="c"># Tarixçə və müvəqqəti faylları təmizlə, sonra söndür</span>
+sudo apt clean &amp;&amp; history -c
+sudo shutdown -h now</code></pre>
+    <div class="warn">⚠️ <b>machine-id və SSH açarları</b> təmizlənməsə: bütün clone VM-lər eyni kimliklə çıxır — DHCP onlara <b>eyni IP</b> verir və SSH xəbərdarlıqları başlayır. Ən çox rast gəlinən template səhvi budur.</div>
+
+    <h2 style="margin-top:14px;">Addım 5 — Template-ə çevir</h2>
+    <ul>
+      <li>VM söndürülmüş halda: sağ klik → <b>Template → Convert to Template</b></li>
+      <li>Ad: <code>ubuntu-2204-template</code> — <b>məhz bu adı</b> Terraform-a verəcəyik (məlumat vərəqəsinə yaz!)</li>
+      <li>Yoxlama: <b>VMs and Templates</b> ağacında template ikonu ilə görünməlidir</li>
+    </ul>
+
+    <div class="tip">✅ <b>Nəticə:</b> bir dəfəlik 30 dəqiqəlik iş — sonra hər <code>terraform apply</code> ondan 1–2 dəqiqəyə yeni VM çıxarır.
+      Template-i sonradan yeniləmək lazım gəlsə: <b>Convert to Virtual Machine</b> → dəyişiklik et → yenidən template-ə çevir.</div>
+
+    <div class="ai">🤖 Sənayedə bu iş də avtomatlaşdırılır — HashiCorp <b>Packer</b> template-i koddan hazırlayır.
+      Zəncir: <b>Packer</b> (template düzəldir) → <b>Terraform</b> (VM yaradır) → <b>Ansible</b> (içini konfiqurasiya edir).</div>
+  </div>
+
+  <p class="section-title">5 · Kod strukturu — data source-lar və resurs</p>
+  <div class="card">
+    <p>AWS-də demək olar hər şey <code>resource</code> idi. Burada <b>5 data source + 1 resource</b>:</p>
+<pre><code><span class="c"># providers.tf</span>
+terraform {
+  required_providers {
+    vsphere = {
+      source  = <span class="s">"hashicorp/vsphere"</span>
+      version = <span class="s">"~&gt; 2.12"</span>
+    }
+  }
+}
+
+provider <span class="s">"vsphere"</span> {
+  <span class="c"># Giriş məlumatları env dəyişənlərindən oxunur:</span>
+  <span class="c">#   VSPHERE_SERVER / VSPHERE_USER / VSPHERE_PASSWORD</span>
+  allow_unverified_ssl = true   <span class="c"># yalnız test mühitində (self-signed sertifikat)</span>
+}</code></pre>
+
+<pre><code><span class="c"># main.tf — ƏVVƏL TAP (data), SONRA YARAT (resource)</span>
+
+data <span class="s">"vsphere_datacenter" "dc"</span>      { name = var.datacenter }
+data <span class="s">"vsphere_datastore" "ds"</span>       { name = var.datastore
+                                       datacenter_id = data.vsphere_datacenter.dc.id }
+data <span class="s">"vsphere_compute_cluster" "cl"</span> { name = var.cluster
+                                       datacenter_id = data.vsphere_datacenter.dc.id }
+data <span class="s">"vsphere_network" "net"</span>        { name = var.network
+                                       datacenter_id = data.vsphere_datacenter.dc.id }
+data <span class="s">"vsphere_virtual_machine" "tpl"</span>{ name = var.template
+                                       datacenter_id = data.vsphere_datacenter.dc.id }
+
+resource <span class="s">"vsphere_virtual_machine" "vm"</span> {
+  name             = var.vm_name
+  resource_pool_id = data.vsphere_compute_cluster.cl.resource_pool_id
+  datastore_id     = data.vsphere_datastore.ds.id
+
+  num_cpus = var.cpu
+  memory   = var.memory
+  guest_id = data.vsphere_virtual_machine.tpl.guest_id
+
+  network_interface {
+    network_id   = data.vsphere_network.net.id
+    adapter_type = data.vsphere_virtual_machine.tpl.network_interface_types[0]
+  }
+
+  disk {
+    label            = <span class="s">"disk0"</span>
+    size             = var.disk_size
+    thin_provisioned = true
+  }
+
+  clone {
+    template_uuid = data.vsphere_virtual_machine.tpl.id
+
+    customize {
+      linux_options {
+        host_name = var.vm_name
+        domain    = var.domain
+      }
+      network_interface {}       <span class="c"># boş = DHCP</span>
+    }
+  }
+}</code></pre>
+    <div class="tip">✅ Bu, "Server Təməlləri" sənədindəki düsturun canlı görüntüsüdür: <b>on-prem = əvvəl data source ilə təməli tap, sonra resource ilə VM yarat.</b></div>
+    <div class="ai">🤖 Copilot bu kodu böyük ölçüdə özü yazacaq — amma <b>ad sahələrini</b> (datacenter, datastore, network, template adları) uydurmağa meyllidir. Onları <b>yalnız sən</b> verə bilərsən: aşağıdakı vərəqədən.</div>
+  </div>
+
+  <p class="section-title">6 · Məlumat toplama vərəqəsi — bunları doldurmalıyıq</p>
+  <div class="card">
+    <p>Kodu yazmazdan əvvəl vCenter-dən bu 9 dəyəri götürmək lazımdır (Terraform data source-ları <b>adla</b> axtarır — hərf-hərf dəqiq olmalıdır):</p>
+    <table>
+      <tr><th style="width:30%;">Nə lazımdır</th><th style="width:34%;">vCenter-də haradan baxılır</th><th>Dəyər</th></tr>
+      <tr><td><b>vCenter ünvanı</b></td><td>Brauzerdəki FQDN/IP</td><td><span class="fill">vcenter.local / 10.x.x.x</span></td></tr>
+      <tr><td><b>İstifadəçi + parol</b></td><td>Administration → Users (Terraform üçün ayrıca)</td><td><span class="fill">terraform@vsphere.local</span></td></tr>
+      <tr><td><b>Datacenter adı</b></td><td>Inventory → sol ağacın ən üstü</td><td><span class="fill">Datacenter</span></td></tr>
+      <tr><td><b>Cluster adı</b></td><td>Datacenter altında (yoxdursa: host adı)</td><td><span class="fill">Cluster01</span></td></tr>
+      <tr><td><b>Datastore adı</b></td><td>Datastores tabı (boş yerinə də bax!)</td><td><span class="fill">datastore1</span></td></tr>
+      <tr><td><b>Port Group adı</b></td><td>Networks tabı</td><td><span class="fill">VM Network</span></td></tr>
+      <tr><td><b>Template adı</b></td><td>VMs and Templates ağacı</td><td><span class="fill">ubuntu-22.04-template</span></td></tr>
+      <tr><td><b>IP mənbəyi</b></td><td>Şəbəkədə DHCP var? Yoxsa static?</td><td><span class="fill">DHCP / 10.x.x.x</span></td></tr>
+      <tr><td><b>Domain adı</b></td><td>Guest customization üçün</td><td><span class="fill">local / dcras.lan</span></td></tr>
+    </table>
+    <div class="tip">✅ Bu vərəqə həm də <b>dərsdə tələbəyə veriləcək məlumat dəstidir</b> — AWS-də IAM açarları hansı rolu oynayırdısa, burada bu 9 sətir həmin rolu oynayır.</div>
+  </div>
+
+  <p class="section-title">7 · İş axını və yoxlama</p>
+  <div class="card">
+<pre><code><span class="c"># 1) Giriş məlumatları (parol kodda YOX!)</span>
+$ export VSPHERE_SERVER=<span class="s">"vcenter.local"</span>
+$ export VSPHERE_USER=<span class="s">"terraform@vsphere.local"</span>
+$ export VSPHERE_PASSWORD=<span class="s">"••••••"</span>
+
+<span class="c"># 2) Tanış beş addım</span>
+$ terraform init          <span class="c"># vsphere provider endirilir</span>
+$ terraform validate
+$ terraform plan          <span class="c"># gözlənilən: 1 to add</span>
+$ terraform apply
+$ terraform destroy       <span class="c"># dərs sonu ritualı</span></code></pre>
+    <p><b>Yoxlama:</b> vCenter → VMs → VM görünür, işə düşüb, IP alıb → SSH ilə qoşul.</p>
+    <div class="warn">⚠️ <b>Fərq:</b> AWS-də <code>destroy</code> xərci dayandırırdı; burada isə <b>resursu boşaldır</b> (CPU/RAM/disk) — pul geri qayıtmır, çünki dəmir onsuz da alınıb.</div>
+  </div>
+
+  <p class="section-title">8 · Gözlənilən tələlər</p>
+  <div class="card">
+    <table>
+      <tr><th style="width:40%;">Tələ</th><th>Nəticə / həll</th></tr>
+      <tr><td>Template-də VMware Tools yoxdur</td><td>Customization işləmir → template-i düzəlt və yenidən çevir</td></tr>
+      <tr><td>Ad səhv yazılıb (datastore/network)</td><td><code>plan</code> mərhələsində "not found" xətası → adı vCenter-dən kopyala</td></tr>
+      <tr><td>Standalone host (cluster yoxdur)</td><td><code>vsphere_compute_cluster</code> əvəzinə <code>vsphere_host</code> + <code>vsphere_resource_pool</code></td></tr>
+      <tr><td>Self-signed sertifikat</td><td><code>allow_unverified_ssl = true</code> (yalnız test)</td></tr>
+      <tr><td>Datastore-da yer yoxdur</td><td><code>apply</code> yarımçıq qalır → disk ölçüsünü azalt / yer boşalt</td></tr>
+      <tr><td>DHCP yoxdur, static verilməyib</td><td>VM şəbəkəsiz qalır → <code>customize</code> blokunda IP təyin et</td></tr>
+    </table>
+  </div>
+
+  <div class="tip" style="margin-top:20px;">
+    ✅ <b>Növbəti addım:</b> yuxarıdakı 9 sətirlik vərəqəni doldurun — ondan sonra <code>labs/vcenter/</code> altında işlək layihə skeletini hazırlayıb
+    (variables + tfvars + main) birlikdə <code>plan</code> edə bilərik. vCenter hələ qurulmayıbsa, sıra belədir:
+    <b>VCSA deploy → host əlavə → template hazırla → istifadəçi yarat → bu vərəqəni doldur</b>.
+  </div>
+
+</main>
+
+<footer>
+  Data Platform &amp; Engineering Bootcamp · DPE-07 · Plan sənədi ·
+  <a href="server-temelleri-aws-vcenter.html">← Server Təməlləri</a> · <a href="../index.html">Ana səhifə</a>
+</footer>
+
+</body>
+</html>

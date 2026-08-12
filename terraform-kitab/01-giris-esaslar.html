@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giriş və Əsaslar · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 1</div>
+  <h1>Giriş və Əsaslar</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Bu fəsildə Terraform-un nə olduğunu, Infrastructure as Code yanaşmasının hansı problemi həll etdiyini və Terraform-un daxildə necə işlədiyini öyrənəcəksən. Sonra alətin quraşdırılmasını edib ilk konfiqurasiyanı yazacaq, <code>init → plan → apply → destroy</code> dövrəsini əldən keçirəcəksən. Bu fəsil sonrakı bütün mövzuların təməlidir.</div>
+
+  <p class="section-title">1 · Terraform nədir</p>
+  <div class="card">
+    <h2>Qısa tərif</h2>
+    <p>Terraform — HashiCorp tərəfindən hazırlanmış açıq mənbəli <strong>Infrastructure as Code (IaC)</strong> alətidir. O, infrastruktur resurslarını konfiqurasiya faylları vasitəsilə təyin etməyə, yaratmağa və idarə etməyə imkan verir. İdarə olunan resurslar fiziki və ya virtual ola bilər: serverlər, verilənlər bazaları, şəbəkə komponentləri, yaddaş (storage) və hətta Kubernetes klasterləri.</p>
+    <p>Konfiqurasiyalar <strong>HCL</strong> (HashiCorp Configuration Language) adlanan deklarativ dildə yazılır. HCL həm öyrənməsi asan, həm də kifayət qədər güclü bir dildir.</p>
+    <p>Terraform-un əsas gücü ondadır ki, infrastruktur idarəsini sadə deklarativ modelə çevirir. Bulud provayderinin idarə panelində resursları əl ilə yaratmaq və ya onları avtomatlaşdırmaq üçün skript yazmaq əvəzinə, sən sadəcə infrastrukturun <em>necə görünməli olduğunu</em> təsvir edirsən — qalanını Terraform öz üzərinə götürür.</p>
+    <p>Terraform geniş yayılıb, çünki bir çox mühiti eyni alətlə idarə edə bilir: AWS, Azure, Google Cloud, həmçinin VMware və OpenStack kimi provider-lər vasitəsilə on-premise mühitlər. Provayderdən asılı olmayaraq bütün infrastrukturu bir yerdən idarə edirsən.</p>
+  </div>
+
+  <p class="section-title">2 · Infrastructure as Code (IaC)</p>
+  <div class="card">
+    <h2>Anlayış</h2>
+    <p>Terraform-u yaxşı başa düşmək üçün əvvəlcə IaC anlayışını mənimsəmək lazımdır. IaC infrastrukturun yaradılmasını və idarəsini kod vasitəsilə — deklarativ və ya imperativ şəkildə — avtomatlaşdırmağa imkan verir. Hər resursu bulud konsolundan və ya əmr sətrindən əl ilə tənzimləmək əvəzinə, sən infrastrukturun <strong>arzu olunan vəziyyətini</strong> təsvir edirsən, IaC aləti isə onu həyata keçirir.</p>
+
+    <h3>IaC-in əsas faydaları</h3>
+    <table>
+      <tr><th>Fayda</th><th>Nə deməkdir</th></tr>
+      <tr><td>Ardıcıllıq (Consistency)</td><td>Eyni infrastruktur quruluşu bütün mühitlərdə təkrarlanır — development, staging, prod arasında fərq yaranmır.</td></tr>
+      <tr><td>Versiya nəzarəti</td><td>Konfiqurasiyalar Git kimi sistemlərdə saxlanılır: dəyişiklikləri izləmək, geri qaytarmaq (rollback) və komanda ilə birgə işləmək asanlaşır.</td></tr>
+      <tr><td>Avtomatlaşdırma</td><td>İnfrastruktur saniyələr və ya dəqiqələr içində qurulur, dəyişdirilir — insan səhvi riski kəskin azalır.</td></tr>
+    </table>
+
+    <div class="note"><strong>Qeyd.</strong> Deklarativ yanaşma "nəyi istəyirəm" sualına cavab verir, imperativ yanaşma isə "necə edim" sualına. Terraform deklarativdir: sən nəticəni yazırsan, addımların ardıcıllığını alət özü hesablayır.</div>
+  </div>
+
+  <p class="section-title">3 · Terraform necə işləyir</p>
+  <div class="card">
+    <h2>Dörd addımlı iş dövrəsi</h2>
+    <p>Terraform infrastruktur API-ları ilə (məsələn AWS və ya Azure API-ları) <strong>provider</strong>-lər vasitəsilə əlaqə qurur. Sadələşdirilmiş mənzərə belədir:</p>
+    <ol>
+      <li><strong>Konfiqurasiya faylları.</strong> Arzu olunan vəziyyəti <code>.tf</code> fayllarında HCL ilə təsvir edirsən.</li>
+      <li><strong>terraform plan.</strong> Terraform sənin yazdığın konfiqurasiyanı infrastrukturun mövcud vəziyyəti ilə tutuşdurur və hərəkət planı hazırlayır.</li>
+      <li><strong>terraform apply.</strong> Terraform planda göstərilən dəyişiklikləri bulud provayderinin API-ları ilə əlaqə quraraq tətbiq edir: resurs yaradır, yeniləyir və ya silir.</li>
+      <li><strong>State faylı.</strong> Terraform idarə etdiyi resursları <code>terraform.tfstate</code> faylında qeyd edir. Bu fayl görülən işlərin qeydiyyat dəftəridir və gələcək dəyişikliklərin artımlı (incremental) şəkildə aparılmasına imkan verir.</li>
+    </ol>
+
+    <div class="tip"><strong>Məsləhət.</strong> Bu dörd addımı ilk gündən vərdiş halına gətir: konfiqurasiyanı yaz → <code>plan</code> ilə oxu → nəticəni başa düşdükdən sonra <code>apply</code> et. <code>plan</code>-ı oxumadan <code>apply</code> etmək ən çox yayılmış səhvdir.</div>
+  </div>
+
+  <p class="section-title">4 · Niyə məhz Terraform</p>
+  <div class="card">
+    <h2>a. Çoxbuludlu (multi-cloud) dəstək</h2>
+    <p>Terraform-un ən diqqətəçarpan xüsusiyyətlərindən biri eyni anda bir neçə bulud provayderi ilə işləyə bilməsidir. Bir provayderə bağlı qalan alətlərdən (məsələn, AWS CloudFormation yalnız AWS üçündür) fərqli olaraq, Terraform infrastrukturu müxtəlif bulud mühitləri üzərində idarə etməyə imkan verir. Bu, multi-cloud və ya hibrid strategiya seçən təşkilatlar üçün xüsusilə dəyərlidir.</p>
+    <p>Məsələn, əsas infrastruktur üçün AWS EC2 instance-larını, məlumat saxlanması üçün Google Cloud Storage-ı, mikroservislərin yerləşdirilməsi üçün isə Azure Kubernetes Service-i — hamısını bir Terraform konfiqurasiyası daxilində idarə edə bilərsən. Bu çeviklik komandaları vendor lock-in-dən qoruyur və hər provayderin ən güclü tərəfindən istifadə etməyə imkan verir.</p>
+
+    <p>Sadə çoxbuludlu quruluş nümunəsi:</p>
+<pre><code><span class="c"># AWS provider — Şimali Virciniya regionu</span>
+<span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-east-1"</span>
+}
+
+<span class="c"># Google Cloud provider</span>
+<span class="k">provider</span> <span class="s">"google"</span> {
+  project = <span class="s">"my-google-project"</span>
+  region  = <span class="s">"us-central1"</span>
+}
+
+<span class="c"># AWS-də EC2 instance</span>
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_aws_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+}
+
+<span class="c"># Google Cloud-da storage bucket</span>
+<span class="k">resource</span> <span class="s">"google_storage_bucket"</span> <span class="s">"my_bucket"</span> {
+  name     = <span class="s">"my-storage-bucket"</span>
+  location = <span class="s">"US"</span>
+}</code></pre>
+  </div>
+
+  <div class="card">
+    <h2>b. Deklarativ sintaksis</h2>
+    <p>Terraform infrastrukturun təsviri üçün deklarativ modeldən istifadə edir. Yəni sən infrastrukturun necə görünməli olduğunu yazırsan, bu vəziyyətə <em>hansı yolla</em> çatılacağını isə Terraform həll edir. EC2 instance yaratmaq üçün hər addımı əl ilə göstərmək əvəzinə, sadəcə son nəticəni təyin edirsən.</p>
+    <p>Bu, imperativ yanaşmanın əksidir — orada hər iş üçün addım-addım göstəriş yazmaq lazımdır. Terraform-un deklarativ təbiəti sayəsində konfiqurasiya faylları daha oxunaqlı, daha yığcam və səhvə daha az meyllidir.</p>
+  </div>
+
+  <div class="card">
+    <h2>c. Modul əsaslı infrastruktur</h2>
+    <p>Terraform <strong>module</strong>-lardan istifadəni təşviq edir. Module — müxtəlif layihələrdə təkrar istifadə oluna bilən, öz-özünə tam olan infrastruktur komponentidir. Bu, infrastrukturu modul quruluşlu və genişlənə bilən edir. Texniki baxımdan module sadəcə <code>.tf</code> faylları olan bir qovluqdur və bir qrup resursu öz içində qablaşdırır.</p>
+    <p>Məsələn, VPC üçün ayrı module, EC2 instance-lar üçün başqa module, load balancer-lər üçün üçüncü module yaza bilərsən. Sonra bu module-ları kodu təkrarlamadan bütün mühitlərdə (development, staging, prod) işlədirsən.</p>
+<pre><code><span class="c"># Module-un təyini (modules/vpc/main.tf)</span>
+<span class="k">module</span> <span class="s">"vpc"</span> {
+  source     = <span class="s">"./modules/vpc"</span>
+  cidr_block = <span class="s">"10.0.0.0/16"</span>
+}
+
+<span class="c"># Module-un əsas konfiqurasiyada işlədilməsi</span>
+<span class="k">module</span> <span class="s">"my_vpc"</span> {
+  source     = <span class="s">"./modules/vpc"</span>
+  cidr_block = <span class="s">"10.0.0.0/16"</span>
+}</code></pre>
+    <p>Module-lardan istifadə etməklə infrastrukturu müxtəlif layihələr arasında asanlıqla nizamlaya və standartlaşdıra bilərsən.</p>
+  </div>
+
+  <div class="card">
+    <h2>d. State — infrastrukturun vəziyyətinin izlənməsi</h2>
+    <p>Terraform infrastrukturun vəziyyətini <code>terraform.tfstate</code> faylı vasitəsilə izləyir. Bu fayl mövcud infrastrukturun anlıq şəklidir (snapshot) və Terraform-a hansı resursların artıq mövcud olduğunu, hansıların dəyişdirilməli, hansıların silinməli olduğunu bildirir.</p>
+    <p>State faylı sayəsində Terraform artımlı yeniləmələr apara bilir — yalnız lazım olan dəyişikliklər tətbiq olunur. Beləliklə bütün infrastrukturu yenidən qurmağa ehtiyac qalmır, bu isə həm vaxta qənaətdir, həm də səhv riskini azaldır.</p>
+    <table>
+      <tr><th>Saxlanma yeri</th><th>İzahat</th><th>Nə vaxt uyğundur</th></tr>
+      <tr><td>Lokal</td><td>State faylı Terraform-un işlədiyi maşında saxlanılır.</td><td>Təkbaşına təcrübə, öyrənmə mərhələsi</td></tr>
+      <tr><td>Remote (uzaq)</td><td>State faylı Amazon S3, Azure Blob Storage kimi xidmətlərdə saxlanılır.</td><td>Bir neçə nəfərin eyni infrastruktur üzərində işlədiyi komandalar</td></tr>
+    </table>
+    <div class="warn"><strong>Diqqət.</strong> State faylında açıq mətnlə həssas məlumatlar (parollar, açarlar) ola bilər. Onu heç vaxt Git repozitoriyasına yükləmə və komanda işində mütləq remote backend işlət.</div>
+  </div>
+
+  <p class="section-title">5 · Terraform-un əsas imkanları</p>
+  <div class="card">
+    <h2>a. Execution plan — dəyişikliklərə əvvəlcədən baxış</h2>
+    <p>Terraform-un execution plan imkanı dəyişiklikləri tətbiq etməzdən əvvəl onlara baxmağa imkan verir. <code>terraform plan</code> işlədəndə Terraform infrastrukturun mövcud vəziyyətini (state faylındakı) konfiqurasiyada təsvir olunmuş arzu olunan vəziyyətlə tutuşdurur. Nəticədə hansı addımların atılacağını göstərən plan yaranır: yeni resursların yaradılması, mövcudların yenilənməsi və ya köhnəlmişlərin silinməsi.</p>
+<pre><code>terraform plan</code></pre>
+    <p>Nümunə nəticə:</p>
+<pre><code><span class="g">+ aws_instance.my_instance</span>
+    ami:           <span class="s">"ami-0c55b159cbfafe1f0"</span>
+    instance_type: <span class="s">"t2.micro"</span>
+
+Plan: 1 to add, 0 to change, 0 to destroy.</code></pre>
+    <p>Bu imkan dəyişiklikləri tətbiq etməzdən əvvəl nəzərdən keçirmək fürsəti yaradır və iş mühitində təsadüfi dəyişiklik riskini azaldır.</p>
+  </div>
+
+  <div class="card">
+    <h2>b. Resource graph — asılılıq qrafı</h2>
+    <p>Terraform resurslar arasındakı əlaqələri təsvir edən asılılıq qrafı qurur. Asılılıqları başa düşdüyü üçün hansı resursların paralel yaradıla biləcəyini, hansıların isə müəyyən ardıcıllıqla yaradılmalı olduğunu özü müəyyən edir.</p>
+    <p>Məsələn, bir-birindən asılı olmayan EC2 instance və S3 bucket paralel yaradıla bilər. Amma EC2 instance əvvəlcə yaradılmalı olan VPC-yə bağlıdırsa, Terraform VPC-nin əvvəl qurulmasını təmin edəcək.</p>
+  </div>
+
+  <div class="card">
+    <h2>c. Zəngin provider ekosistemi</h2>
+    <p>Terraform-un çox geniş provider ekosistemi var. Provider-lər bulud platformaları və digər API-larla əlaqə qurmağa cavabdehdir. Ən çox işlədilənlər:</p>
+    <table>
+      <tr><th>Provider</th><th>İdarə etdiyi resurslar</th></tr>
+      <tr><td>AWS</td><td>EC2 instance-lar, S3 bucket-lər, RDS verilənlər bazaları və s.</td></tr>
+      <tr><td>Azure</td><td>Virtual Machine-lər, App Service-lər, Azure Kubernetes Service (AKS)</td></tr>
+      <tr><td>Google Cloud</td><td>Compute Engine, Cloud Storage, Google Kubernetes Engine (GKE)</td></tr>
+      <tr><td>Kubernetes</td><td>Kubernetes klasterləri və içindəki resurslar — Kubernetes infrastrukturunu kod kimi idarə etmək</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>d. Modulluq və təkrar istifadə</h2>
+    <p>Yuxarıda qeyd olunduğu kimi, Terraform module-ları dəstəkləyir. Module-lar kodun təkrar istifadəsini asanlaşdırır və infrastruktur kodunu nizamlı saxlamağa kömək edir. Xüsusilə yüzlərlə və ya minlərlə resursun idarə olunduğu böyükmiqyaslı infrastrukturlarda əvəzsizdir.</p>
+    <p>Məsələn, VPC təyin edən bir module bütün mühitlərdə işlədilə bilər — bu da bütün mühitlərdə eyni şəbəkə konfiqurasiyasını təmin edir.</p>
+  </div>
+
+  <div class="card">
+    <h2>e. Birgə iş və versiya nəzarəti</h2>
+    <p>Terraform konfiqurasiyaları Git kimi versiya nəzarəti sistemlərində saxlanıla bilər. Bu, komandalara infrastruktur üzərində eynilə tətbiq kodu kimi birgə işləmək imkanı verir. Konfiqurasiyadakı hər dəyişiklik versiya tarixçəsində qeyd olunur: dəyişiklikləri audit etmək, problemli yeniləmələri geri qaytarmaq və komandalararası əməkdaşlıq asanlaşır.</p>
+    <div class="ai"><strong>Əlavə fikir.</strong> Infrastruktur kodunu tətbiq kodu ilə eyni səviyyədə cidd-cəhdlə idarə et: pull request, kod baxışı (code review), CI-da <code>terraform plan</code>-ın avtomatik işlədilməsi. Bu vərdişlər infrastruktur səhvlərinin böyük hissəsini prod-a çatmamış tutur.</div>
+  </div>
+
+  <p class="section-title">6 · Terraform-un quraşdırılması</p>
+  <div class="card">
+    <h2>Ümumi mənzərə</h2>
+    <p>Terraform Linux, macOS və Windows üzərində quraşdırıla bilər. Quraşdırma sadədir: binar faylı yükləyib sistemin <code>PATH</code>-inə əlavə etmək kifayətdir.</p>
+
+    <h3>a. Linux-da quraşdırma</h3>
+    <p><strong>1. Binar faylı yüklə.</strong> Rəsmi yükləmə səhifəsindən son versiyanı götür və ya <code>wget</code> işlət:</p>
+<pre><code>wget https://releases.hashicorp.com/terraform/1.0.0/terraform_1.0.0_linux_amd64.zip</code></pre>
+    <p><strong>2. Arxivi aç.</strong> Yükləmədən sonra faylı açıb icra olunan sənədi əldə et:</p>
+<pre><code>unzip terraform_1.0.0_linux_amd64.zip</code></pre>
+    <p><strong>3. Binar faylı <code>/usr/local/bin/</code>-ə köçür</strong> ki, istənilən terminal seansından çağırıla bilsin:</p>
+<pre><code>sudo mv terraform /usr/local/bin/</code></pre>
+    <p><strong>4. Quraşdırmanı yoxla:</strong></p>
+<pre><code>terraform --version</code></pre>
+    <p>Ekranda quraşdırılmış versiya görünməlidir — bu, quraşdırmanın uğurlu olduğunu təsdiqləyir.</p>
+
+    <h3>b. macOS-da quraşdırma</h3>
+    <p>macOS-da Terraform-u Homebrew paket meneceri ilə quraşdırmaq ən rahat yoldur.</p>
+    <p><strong>1. Homebrew-u quraşdır</strong> (əgər hələ yoxdursa). Homebrew macOS üçün geniş yayılmış paket menecerdir və bir çox alətin, o cümlədən Terraform-un quraşdırılmasını asanlaşdırır:</p>
+<pre><code>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</code></pre>
+    <p><strong>2. Terraform-u quraşdır:</strong></p>
+<pre><code>brew install terraform</code></pre>
+    <p><strong>3. Yoxla:</strong></p>
+<pre><code>terraform --version</code></pre>
+
+    <h3>c. Windows-da quraşdırma</h3>
+    <p>Windows-da binar faylı əl ilə yükləmək və ya Chocolatey paket menecerindən istifadə etmək olar.</p>
+    <p><strong>1. Chocolatey ilə.</strong> Chocolatey artıq quraşdırılıbsa, administrator hüquqlu əmr sətrində:</p>
+<pre><code>choco install terraform</code></pre>
+    <p><strong>2. Əl ilə quraşdırma.</strong> Rəsmi saytdan Windows binar faylını yüklə, zip arxivini aç və <code>terraform.exe</code> faylını <code>PATH</code> mühit dəyişəninə daxil olan bir qovluğa yerləşdir (məsələn <code>C:\Windows\System32</code>).</p>
+    <p><strong>3. Yoxla.</strong> Command Prompt pəncərəsini aç və versiyanı soruş:</p>
+<pre><code>terraform --version</code></pre>
+
+    <div class="tip"><strong>Məsləhət.</strong> Kursda göstərilən <code>1.0.0</code> versiyası nümunə üçündür. Praktikada hər zaman güncəl sabit versiyanı işlət və komanda daxilində eyni versiyada dayan — versiya fərqi state faylında gözlənilməz nəticələr verə bilər.</div>
+  </div>
+
+  <p class="section-title">7 · Terraform konfiqurasiyasının əsasları</p>
+  <div class="card">
+    <h2>a. Konfiqurasiyanın quruluşu</h2>
+    <p>Terraform quraşdırıldıqdan sonra növbəti addım infrastrukturu idarə etməyə başlamaq üçün sadə bir konfiqurasiya yaratmaqdır. Terraform HCL dilində yazılmış konfiqurasiya fayllarından istifadə edir.</p>
+    <p>Sadə Terraform konfiqurasiyası üç əsas hissədən ibarətdir:</p>
+    <ul>
+      <li><strong>Provider-lər</strong> — bulud provayderini və ya infrastruktur platformasını təyin edir.</li>
+      <li><strong>Resource-lar</strong> — idarə olunacaq infrastruktur resurslarını təsvir edir.</li>
+      <li><strong>Dəyişənlər və output-lar</strong> — dəyişənlər konfiqurasiyaya çeviklik gətirir, output-lar isə yerləşdirmədən sonra faydalı məlumat qaytarır.</li>
+    </ul>
+    <p>Aşağıda Terraform ilə AWS EC2 instance qurmağın sadə nümunəsini addım-addım keçirik.</p>
+  </div>
+
+  <div class="card">
+    <h2>b. Provider-in təyini</h2>
+    <p>Provider infrastruktur resurslarının yaradılmasına və idarəsinə cavabdehdir. Resurs yaratmazdan əvvəl işlədiyin platforma üçün provider-i təyin etməlisən.</p>
+<pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  region     = <span class="s">"us-west-1"</span>
+  access_key = <span class="s">"your-access-key"</span>
+  secret_key = <span class="s">"your-secret-key"</span>
+}</code></pre>
+    <ul>
+      <li><code>provider</code> bloku AWS ilə əlaqə qurmaq üçün lazım olan konfiqurasiyanı təyin edir.</li>
+      <li>Giriş açarlarını ya birbaşa konfiqurasiyada göstərə bilərsən (təhlükəsizlik baxımından <strong>təklif olunmur</strong>), ya da <code>AWS_ACCESS_KEY_ID</code> və <code>AWS_SECRET_ACCESS_KEY</code> mühit dəyişənlərindən istifadə edə bilərsən.</li>
+    </ul>
+    <div class="warn"><strong>Xəbərdarlıq.</strong> Açarları <code>.tf</code> faylının içinə yazmaq ən təhlükəli vərdişlərdən biridir — fayl Git-ə düşən kimi açarlar sızır. Mühit dəyişənləri, AWS profil faylı və ya IAM rolu işlət.</div>
+  </div>
+
+  <div class="card">
+    <h2>c. Resource-ların təyini</h2>
+    <p>Provider təyin olunandan sonra resursları yazmağa başlaya bilərsən. Resource-lar infrastrukturun təməl komponentləridir: virtual maşınlar, yaddaş, şəbəkələr.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"example"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span> <span class="c"># Amazon Linux AMI</span>
+  instance_type = <span class="s">"t2.micro"</span>
+}</code></pre>
+    <ul>
+      <li><code>resource</code> bloku AWS-də bir EC2 instance təyin edir. AMI (Amazon Machine Image) instance-ın əməliyyat sistemini, <code>instance_type</code> isə ölçüsünü müəyyən edir.</li>
+      <li><code>aws_instance.example</code> adı Terraform-un bu resursu daxildə tanıması üçün işlədilir.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>d. Dəyişənlər</h2>
+    <p>Terraform konfiqurasiyaları daha dinamik və təkrar istifadəyə yararlı etmək üçün dəyişənləri dəstəkləyir. Instance tipi və ya region kimi dəyərləri koda sabit yazmaq əvəzinə dəyişən təyin edirsən.</p>
+<pre><code><span class="k">variable</span> <span class="s">"instance_type"</span> {
+  default = <span class="s">"t2.micro"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"example"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = var.instance_type
+}</code></pre>
+    <p>Yuxarıdakı nümunədə <code>instance_type</code> adlı dəyişən təyin olunub və resource blokunda <code>var.instance_type</code> ilə ona müraciət edilir.</p>
+    <p>Dəyişənlər həm də <code>terraform apply</code> zamanı əmr sətri arqumenti kimi ötürülə bilər — bu, konfiqurasiya fayllarına toxunmadan dəyərləri dəyişməyə imkan verir.</p>
+  </div>
+
+  <div class="card">
+    <h2>e. Output-lar</h2>
+    <p>Output-lar infrastruktur qurulduqdan sonra ondan dəyər çıxarmaq üçündür. Bu, konfiqurasiyalar arasında məlumat ötürmək və ya IP ünvanı, resurs ID-si kimi vacib məlumatları göstərmək baxımından faydalıdır.</p>
+<pre><code><span class="k">output</span> <span class="s">"instance_ip"</span> {
+  value = aws_instance.example.public_ip
+}</code></pre>
+    <p>Konfiqurasiya tətbiq olunduqdan sonra EC2 instance-ın public IP ünvanı ekrana çıxacaq. Output dəyərlərinə infrastruktur qurulduqdan sonra belə müraciət edə bilərsən:</p>
+<pre><code>terraform output instance_ip</code></pre>
+  </div>
+
+  <div class="card">
+    <h2>f. Layihənin ilkin hazırlanması — terraform init</h2>
+    <p>Hər hansı Terraform əmrini işlətməzdən əvvəl layihəni ilkin vəziyyətə gətirmək lazımdır. <code>terraform init</code> əmri lazımi provider plugin-lərini yükləyir və iş mühitini qurur.</p>
+<pre><code>terraform init</code></pre>
+    <p>Bu əmr <code>.tf</code> fayllarının yerləşdiyi qovluqdan işlədilir. İlkin hazırlıqdan sonra Terraform infrastrukturu idarə etməyə hazırdır.</p>
+  </div>
+
+  <div class="card">
+    <h2>g. Plan və apply</h2>
+    <p>Konfiqurasiya hazır olduqda növbəti addım Terraform-un edəcəyi dəyişikliklərə baxmaqdır. Bunun üçün <code>terraform plan</code> işlədilir:</p>
+<pre><code>terraform plan</code></pre>
+    <p>Nəticə hansı resursların yaradılacağını, dəyişdiriləcəyini və ya silinəcəyini göstərir. Bu, iş mühitindəki infrastrukturu təsadüfən dəyişməmək üçün kritik addımdır.</p>
+    <p>Plandan razı qaldıqdan sonra dəyişiklikləri <code>terraform apply</code> ilə tətbiq edirsən:</p>
+<pre><code>terraform apply</code></pre>
+    <p>Bu, Terraform-u bulud provayderi (bu halda AWS) ilə əlaqəyə keçməyə və konfiqurasiyada təyin olunmuş resursları yaratmağa vadar edir.</p>
+  </div>
+
+  <div class="card">
+    <h2>h. State idarəsi</h2>
+    <p>Terraform idarə etdiyi resursları state faylı vasitəsilə izləyir. <code>terraform.tfstate</code> faylı infrastrukturun cari vəziyyətini saxlayır və Terraform-un artımlı dəyişiklikləri idarə etmə qabiliyyəti üçün həlledicidir.</p>
+    <p>Standart olaraq state faylı iş qovluğunda lokal saxlanılır, lakin Amazon S3, Azure Blob Storage və ya Google Cloud Storage kimi xidmətlərdə uzaqda da saxlanıla bilər. Remote state bir neçə komanda üzvünün eyni infrastruktur üzərində işlədiyi hallarda vacibdir.</p>
+    <p>Cari vəziyyəti gözdən keçirmək üçün:</p>
+<pre><code>terraform show</code></pre>
+  </div>
+
+  <div class="card">
+    <h2>i. Təmizləmə — terraform destroy</h2>
+    <p>İnfrastrukturla işin bitəndə və resursları silmək istədikdə <code>terraform destroy</code> əmrini işlədirsən. Bu əmr Terraform-un yaratdığı bütün resursları silir.</p>
+<pre><code>terraform destroy</code></pre>
+    <p>Terraform silməyə başlamazdan əvvəl təsdiq istəyəcək.</p>
+    <div class="warn"><strong>Diqqət.</strong> <code>destroy</code> geri qaytarılmayan əmrdir. Hansı qovluqda və hansı workspace-də olduğunu mütləq yoxla — səhv qovluqda işlədilən bir <code>destroy</code> bütöv mühiti silə bilər.</div>
+  </div>
+
+  <div class="card">
+    <h2>j. Konfiqurasiyaların nizamlanması</h2>
+    <p>İnfrastruktur böyüdükcə Terraform konfiqurasiyalarını module-lara və ya ayrı fayllara bölmək vacib olur. Resursları bir neçə <code>.tf</code> faylına ayırmaq və ya module işlətmək kodu nizamlı və təkrar istifadəyə yararlı saxlayır.</p>
+<pre><code>/project
+ ├── main.tf
+ ├── variables.tf
+ ├── outputs.tf
+ └── modules
+     └── vpc
+         ├── main.tf
+         ├── variables.tf
+         └── outputs.tf</code></pre>
+    <p>Belə bölgü müxtəlif komandaların infrastrukturun ayrı-ayrı hissələri üzərində bir-birinə mane olmadan işləməsinə imkan yaradır.</p>
+    <div class="note"><strong>Qeyd.</strong> Fayl adları Terraform üçün məcburi deyil — alət qovluqdakı bütün <code>.tf</code> fayllarını birləşdirib oxuyur. <code>main.tf</code>, <code>variables.tf</code>, <code>outputs.tf</code> sadəcə geniş yayılmış və oxunaqlılığı artıran razılaşmadır.</div>
+  </div>
+
+  <p class="section-title">8 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>Terraform deklarativ IaC alətidir: sən nəticəni təsvir edirsən, alət isə ona çatmaq yolunu özü hesablayır.</li>
+      <li>İş dövrəsi dəyişmir: <code>init</code> → <code>plan</code> → <code>apply</code>, işin sonunda isə lazım gələrsə <code>destroy</code>.</li>
+      <li>State faylı Terraform-un yaddaşıdır — onsuz artımlı dəyişikliklər mümkün deyil; komanda işində mütləq remote saxla.</li>
+      <li>Provider-lər Terraform-u xarici API-lara bağlayır; bir konfiqurasiyada bir neçə provider işlədilə bilər.</li>
+      <li>Module-lar kodun təkrarını aradan qaldırır və mühitlər arasında eyni quruluşu təmin edir.</li>
+      <li>Credential-ları heç vaxt konfiqurasiya faylına yazma — mühit dəyişənləri və ya IAM rolu işlət.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="index.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Mündəricat</div></a>
+    <a href="02-provider-resurs.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Provider-lər və Resurslar</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kubernetes və EKS · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 18</div>
+  <h1>Kubernetes və EKS</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Terraform yalnız virtual maşın və şəbəkə yaratmır — Kubernetes cluster-inin özünü də, onun içindəki iş yüklərini də idarə edə bilir. Bu fəsildə AWS EKS cluster-ini modul ilə qurmağı, Kubernetes provider-ini konfiqurasiya etməyi, Deployment və Service yaratmağı, ConfigMap, Namespace və Horizontal Pod Autoscaler ilə işləməyi öyrənəcəyik.</div>
+
+  <p class="section-title">1 · Niyə Kubernetes üçün Terraform?</p>
+  <div class="card">
+    <h2>Cluster də infrastrukturdur</h2>
+    <p>Kubernetes cluster-ini konsoldan «bir dəfə» qurmaq asandır — problem ikinci dəfə eynisini qurmaq lazım olanda başlayır. Terraform bu prosesi təkrarlana bilən hala gətirir:</p>
+    <ul>
+      <li><strong>Avtomatlaşdırma</strong> — cluster yaradılması fərqli bulud provider-lərində (AWS EKS, Azure AKS, Google GKE) eyni alətlə avtomatlaşdırılır.</li>
+      <li><strong>Infrastructure as Code</strong> — cluster və iş yükləri deklarativ təsvir olunur; dəyişikliklər git tarixçəsində izlənir və mühitlər arasında fərq yaranmır.</li>
+      <li><strong>Multi-cloud dəstəyi</strong> — fərqli buludlardakı cluster-lər tək alət dəsti ilə idarə olunur.</li>
+      <li><strong>Miqyaslanma çevikliyi</strong> — həm cluster node-larının, həm də iş yüklərinin miqyaslanması konfiqurasiyanın bir hissəsi olur.</li>
+    </ul>
+    <div class="note">Praktik bölgü belədir: <strong>cluster və node group</strong> üçün Terraform ideal seçimdir; <strong>tətbiq deployment-ləri</strong> üçün isə çox komanda Helm və ya GitOps (Argo CD, Flux) işlədir. Səbəb sadədir — tətbiq gündə on dəfə deploy olunur, cluster isə ayda bir dəfə dəyişir və bu iki ritmi eyni state faylında saxlamaq gərginlik yaradır.</div>
+  </div>
+
+  <p class="section-title">2 · Əsas anlayışlar</p>
+  <div class="card">
+    <h2>a · Kubernetes üçün provider-lər</h2>
+    <p>Burada iki fərqli provider iştirak edir və onları qarışdırmamaq vacibdir. <strong>Bulud provider-i</strong> (aws, azurerm, google) cluster-in özünü — control plane, node group, şəbəkə — yaradır. <strong>Kubernetes provider-i</strong> isə artıq mövcud cluster-in API-si ilə danışır və onun içindəki obyektləri (Deployment, Service, Namespace) idarə edir.</p>
+
+    <h2>b · Cluster idarəetməsi</h2>
+    <p>Terraform Kubernetes cluster-ini müxtəlif platformalarda yarada bilər: AWS-də EKS, Azure-da AKS, Google Cloud-da GKE. Hər biri üçün öz resursları və hazır modulları var.</p>
+
+    <h2>c · Resurs idarəetməsi</h2>
+    <p>Cluster hazır olandan sonra Terraform onun daxilindəki obyektləri də idarə edə bilər: Deployment, Service, Namespace, ConfigMap, Ingress. Bu, infrastruktur və iş yükünün vahid iş axınında idarə olunması deməkdir.</p>
+
+    <table>
+      <tr><th>Provider</th><th>Nəyi idarə edir</th><th>Tipik resurslar</th></tr>
+      <tr><td><code>aws</code></td><td>Cluster infrastrukturu</td><td>VPC, subnet, IAM role, EKS cluster</td></tr>
+      <tr><td><code>kubernetes</code></td><td>Cluster daxilindəki obyektlər</td><td><code>kubernetes_deployment</code>, <code>kubernetes_service</code>, <code>kubernetes_namespace</code></td></tr>
+      <tr><td><code>helm</code></td><td>Hazır chart-ların quraşdırılması</td><td>ingress-nginx, cert-manager, metrics-server</td></tr>
+      <tr><td><code>kubectl</code> (üçüncü tərəf)</td><td>Xam YAML manifestləri</td><td>CRD-lər, provider-də qarşılığı olmayan obyektlər</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">3 · Nümunə: AWS EKS cluster-in qurulması</p>
+  <div class="card">
+    <h2>Addım 1 · Provider və EKS modulu</h2>
+    <p>EKS cluster-ini sıfırdan resurs-resurs yazmaq əvəzinə icma tərəfindən dəstəklənən <code>terraform-aws-modules/eks/aws</code> modulundan istifadə edirik. Modul IAM role-ları, security group-ları və node group-ları arxa planda düzgün qurur.</p>
+<pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-west-2"</span>
+}
+
+<span class="k">module</span> <span class="s">"eks"</span> {
+  source          = <span class="s">"terraform-aws-modules/eks/aws"</span>
+  cluster_name    = <span class="s">"my-eks-cluster"</span>
+  cluster_version = <span class="s">"1.21"</span>
+  subnets         = [<span class="s">"subnet-123456"</span>, <span class="s">"subnet-789012"</span>]
+  vpc_id          = <span class="s">"vpc-12345678"</span>
+
+  node_groups = {
+    eks_nodes = {
+      desired_capacity = 2
+      max_capacity     = 3
+      min_capacity     = 1
+      instance_type    = <span class="s">"t3.medium"</span>
+    }
+  }
+}</code></pre>
+    <p>Bu konfiqurasiyada:</p>
+    <ul>
+      <li>AWS provider-i <code>us-west-2</code> regionu üçün təyin olunur.</li>
+      <li>EKS modulu cluster-i yaradır və onun hansı VPC və subnet-lərdə yerləşəcəyini göstərir.</li>
+      <li>Node group worker node-ları idarə edir: minimum 1, maksimum 3, başlanğıcda 2 node.</li>
+    </ul>
+    <div class="warn">Modulun 18-ci versiyasından etibarən arqument adları dəyişib: <code>subnets</code> → <code>subnet_ids</code>, <code>node_groups</code> → <code>eks_managed_node_groups</code>, <code>instance_type</code> → <code>instance_types</code> (siyahı). Həmçinin <code>cluster_version = "1.21"</code> artıq dəstəklənmir — aktual versiyanı seç. Modulu işlədəndə mütləq <code>version = "~&gt; 20.0"</code> kimi versiya kilidi qoy, əks halda modul yenilənəndə konfiqurasiyan gözlənilmədən sınır.</div>
+    <div class="tip">Subnet ID-lərini kodda sabit yazmaq əvəzinə şəbəkəni də Terraform ilə yarat və modula <code>module.vpc.private_subnets</code> kimi istinad et. EKS üçün node-lar private subnet-lərdə, load balancer-lər isə public subnet-lərdə olmalıdır — subnet-lərə uyğun <code>kubernetes.io/role/elb</code> tag-larını qoymağı unutma.</div>
+
+    <h2>Addım 2 · Kubernetes provider-inin konfiqurasiyası</h2>
+    <p>Cluster hazır olandan sonra onun içinə obyekt yaratmaq üçün Kubernetes provider-i cluster endpoint-inə və sertifikatına bağlanmalıdır.</p>
+<pre><code><span class="k">provider</span> <span class="s">"kubernetes"</span> {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+  exec {
+    api_version = <span class="s">"client.authentication.k8s.io/v1beta1"</span>
+    command     = <span class="s">"aws"</span>
+    args        = [<span class="s">"eks"</span>, <span class="s">"get-token"</span>, <span class="s">"--cluster-name"</span>, module.eks.cluster_name]
+  }
+}</code></pre>
+    <p>Burada provider EKS-in endpoint-i və CA sertifikatı ilə cluster-ə qoşulur. <code>exec</code> bloku isə hər dəfə <code>aws eks get-token</code> əmrini çağıraraq qısamüddətli token alır — yəni kodda heç bir sabit kredensial saxlanmır.</p>
+    <div class="warn">Mənbə nümunədə <code>api_version</code> <code>v1alpha1</code> idi və <code>command</code> sətri ümumiyyətlə yox idi. <code>v1alpha1</code> artıq işləmir — <code>v1beta1</code> (və ya yeni versiyalarda <code>v1</code>) işlət və <code>command = "aws"</code> sətrini mütləq əlavə et, yoxsa provider autentifikasiya edə bilməyəcək.</div>
+    <div class="note">Ən çox rast gəlinən problem: cluster hələ mövcud deyilkən Kubernetes provider-inin konfiqurasiyası hesablanmağa çalışır və <code>plan</code> mərhələsində xəta verir. Ona görə cluster-i və cluster daxilindəki obyektləri <strong>ayrı konfiqurasiyalarda</strong> (ayrı state) saxlamaq praktikada ən sağlam yanaşmadır: əvvəlcə cluster apply olunur, sonra iş yükləri.</div>
+
+    <h2>Addım 3 · İş yükünün deploy edilməsi</h2>
+    <p>İndi cluster-ə sadə bir Nginx tətbiqi yerləşdirək — iki replika Deployment və onu xaricə açan LoadBalancer tipli Service.</p>
+<pre><code><span class="k">resource</span> <span class="s">"kubernetes_deployment"</span> <span class="s">"nginx"</span> {
+  metadata {
+    name      = <span class="s">"nginx-deployment"</span>
+    namespace = <span class="s">"default"</span>
+  }
+
+  spec {
+    replicas = 2
+
+    selector {
+      match_labels = {
+        app = <span class="s">"nginx"</span>
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = <span class="s">"nginx"</span>
+        }
+      }
+
+      spec {
+        container {
+          name  = <span class="s">"nginx"</span>
+          image = <span class="s">"nginx:1.27"</span>
+
+          ports {
+            container_port = 80
+          }
+        }
+      }
+    }
+  }
+}
+
+<span class="k">resource</span> <span class="s">"kubernetes_service"</span> <span class="s">"nginx_service"</span> {
+  metadata {
+    name      = <span class="s">"nginx-service"</span>
+    namespace = <span class="s">"default"</span>
+  }
+
+  spec {
+    selector = {
+      app = <span class="s">"nginx"</span>
+    }
+
+    port {
+      port        = 80
+      target_port = 80
+    }
+
+    type = <span class="s">"LoadBalancer"</span>
+  }
+}</code></pre>
+    <p>Nəticədə iki replikalı Nginx deployment-i və onu xaricə açan LoadBalancer tipli service yaranır. AWS-də <code>LoadBalancer</code> tipi avtomatik olaraq Elastic Load Balancer yaradır.</p>
+    <div class="warn"><code>image = "nginx:latest"</code> yazmaqdan çəkin. <code>latest</code> tag-ı zamanla fərqli image-a işarə edir — yəni eyni Terraform kodu bu gün və üç ay sonra fərqli nəticə verir və problemi təkrarlamaq mümkün olmur. Konkret versiya (<code>nginx:1.27</code>) və ya digest işlət.</div>
+
+    <h2>Addım 4 · Tətbiq</h2>
+<pre><code>terraform init   <span class="c"># provider və modulları yüklə</span>
+terraform plan   <span class="c"># planı nəzərdən keçir</span>
+terraform apply  <span class="c"># cluster və iş yükünü yarat</span></code></pre>
+    <p>Bu ardıcıllıq EKS cluster-ini yaradır, worker node-ları konfiqurasiya edir və Nginx iş yükünü cluster-ə yerləşdirir. EKS cluster-inin tam qalxması adətən 10–15 dəqiqə çəkir — bu normaldır.</p>
+  </div>
+
+  <p class="section-title">4 · Digər Kubernetes resursları</p>
+  <div class="card">
+    <h2>a · Namespace</h2>
+    <p>Namespace resursları məntiqi olaraq ayırır: fərqli komandalar və ya mühitlər eyni cluster-də bir-birinə qarışmadan yaşayır.</p>
+<pre><code><span class="k">resource</span> <span class="s">"kubernetes_namespace"</span> <span class="s">"my_namespace"</span> {
+  metadata {
+    name = <span class="s">"my-app-namespace"</span>
+  }
+}</code></pre>
+    <p>Bu blok <code>my-app-namespace</code> adlı yeni namespace yaradır.</p>
+
+    <h2>b · ConfigMap</h2>
+    <p>ConfigMap tətbiqin konfiqurasiya məlumatını açar-dəyər cütləri şəklində saxlayır və onu image-dan ayırır — yəni eyni image fərqli mühitlərdə fərqli parametrlərlə işləyə bilər.</p>
+<pre><code><span class="k">resource</span> <span class="s">"kubernetes_config_map"</span> <span class="s">"my_config_map"</span> {
+  metadata {
+    name      = <span class="s">"app-config"</span>
+    namespace = <span class="s">"default"</span>
+  }
+
+  data = {
+    app_environment = <span class="s">"production"</span>
+    app_version     = <span class="s">"v1.0.0"</span>
+  }
+}</code></pre>
+    <p>Bu ConfigMap-a deployment içindən istinad edərək mühitə uyğun konfiqurasiya ötürmək olar.</p>
+    <div class="warn">Parol, API açarı və sertifikat ConfigMap-də saxlanmır — onlar üçün Secret var. Amma nəzərə al ki, <code>kubernetes_secret</code> resursunun dəyəri Terraform state faylına <strong>açıq mətnlə</strong> düşür. Ona görə secret-ləri External Secrets Operator və ya AWS Secrets Manager üzərindən idarə etmək daha təhlükəsizdir.</div>
+  </div>
+
+  <p class="section-title">5 · Autoscaling — HPA</p>
+  <div class="card">
+    <h2>Pod sayını yükə görə tənzimləmək</h2>
+    <p>Kubernetes-in ən güclü xüsusiyyətlərindən biri iş yükünü tələbata görə avtomatik miqyaslamasıdır. Horizontal Pod Autoscaler (HPA) pod sayını metrikaya — adətən CPU istifadəsinə — görə artırıb-azaldır.</p>
+<pre><code><span class="k">resource</span> <span class="s">"kubernetes_horizontal_pod_autoscaler"</span> <span class="s">"nginx_autoscaler"</span> {
+  metadata {
+    name      = <span class="s">"nginx-hpa"</span>
+    namespace = <span class="s">"default"</span>
+  }
+
+  spec {
+    scale_target_ref {
+      kind = <span class="s">"Deployment"</span>
+      name = kubernetes_deployment.nginx.metadata[0].name
+    }
+
+    min_replicas                      = 2
+    max_replicas                      = 10
+    target_cpu_utilization_percentage = 50
+  }
+}</code></pre>
+    <p>Nümunədə:</p>
+    <ul>
+      <li>HPA Nginx deployment-ini 2 ilə 10 replika arasında miqyaslayır.</li>
+      <li>Hədəf CPU istifadəsi 50%-dir — autoscaler bu səviyyəni saxlamaq üçün replika əlavə edir və ya azaldır.</li>
+    </ul>
+    <div class="note">HPA-nın işləməsi üçün cluster-də <strong>metrics-server</strong> quraşdırılmış olmalıdır və pod-larda <code>resources.requests.cpu</code> təyin edilməlidir. Request yoxdursa, autoscaler faizi nəyə görə hesablayacağını bilmir və miqyaslanma baş vermir. Yeni layihələrdə <code>kubernetes_horizontal_pod_autoscaler_v2</code> resursunu işlət — o, yaddaş və xüsusi metrikaları da dəstəkləyir.</div>
+    <table>
+      <tr><th>Autoscaling növü</th><th>Nəyi miqyaslayır</th><th>Nə vaxt lazımdır</th></tr>
+      <tr><td>HPA</td><td>Pod sayını</td><td>Trafik dalğalanmalarında</td></tr>
+      <tr><td>VPA</td><td>Pod-un CPU/yaddaş limitlərini</td><td>Resurs tələbi bilinməyəndə</td></tr>
+      <tr><td>Cluster Autoscaler / Karpenter</td><td>Node sayını</td><td>Pod-lar yer tapmayanda</td></tr>
+    </table>
+    <div class="tip">HPA və Cluster Autoscaler birlikdə işləyir: HPA pod əlavə edir, pod-a yer çatmayanda Cluster Autoscaler (və ya daha yeni alət olan Karpenter) node əlavə edir. Yalnız HPA qursan, pod-lar <code>Pending</code> vəziyyətində qalacaq.</div>
+  </div>
+
+  <p class="section-title">6 · Best practice-lər</p>
+  <div class="card">
+    <h2>Cluster-i idarə oluna bilən saxlamaq</h2>
+    <ul>
+      <li><strong>Modul strukturu.</strong> Böyük Kubernetes mühitlərində konfiqurasiyanı təkrar işlədilə bilən modullara böl — cluster, node group, addon-lar, iş yükləri ayrı-ayrı.</li>
+      <li><strong>Miqyaslanmanı avtomatlaşdır.</strong> İş yükü səviyyəsində HPA, node səviyyəsində Cluster Autoscaler və ya Karpenter.</li>
+      <li><strong>Təhlükəsizlik.</strong> Secret, Ingress və RBAC siyasətlərini diqqətlə idarə et. Terraform RBAC role və binding-lərini də kod ilə tətbiq etməyə imkan verir — yəni «kimin nəyə icazəsi var» sualının cavabı review olunan fayl olur.</li>
+      <li><strong>State-i ayır.</strong> Cluster infrastrukturu və tətbiq iş yükləri üçün ayrı state faylı saxla — biri sınanda digərinə toxunmasın.</li>
+      <li><strong>Versiyaları kilidlə.</strong> Modul, provider və Kubernetes versiyalarını konkret göstər; avtomatik yeniləmə prod cluster-də ən arzuolunmaz yerdir.</li>
+    </ul>
+    <div class="ai">AI köməkçisi Kubernetes provider-inin blok sintaksisini (HCL) YAML manifest sintaksisi ilə qarışdıra bilər — məsələn <code>spec.containers</code> siyahısı əvəzinə <code>container</code> bloku lazımdır. Bir Deployment yazdıranda nəticəni <code>terraform validate</code> ilə yoxla; xüsusilə <code>metadata[0].name</code> kimi indeksli istinadlarda modelin təklifi tez-tez səhv olur.</div>
+  </div>
+
+  <p class="section-title">7 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>İki fərqli provider iştirak edir: bulud provider-i cluster-i yaradır, Kubernetes provider-i isə onun içindəki obyektləri idarə edir.</li>
+      <li>Cluster və iş yüklərini ayrı state-də saxla — əks halda cluster mövcud olmayanda plan mərhələsində xəta alacaqsan.</li>
+      <li>EKS modulunun arqument adları versiyalar arasında dəyişir; modulu mütləq versiya kilidi ilə işlət.</li>
+      <li>HPA yalnız metrics-server və <code>resources.requests</code> təyin olunanda işləyir; node səviyyəsində miqyaslanma üçün ona Cluster Autoscaler əlavə et.</li>
+      <li><code>latest</code> image tag-ından və state-də açıq qalan Secret-lərdən çəkin — hər ikisi prod-da problemin gec üzə çıxan mənbəyidir.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="17-multicloud-2.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Multi-Cloud — Praktik Nümunələr</div></a>
+    <a href="19-serverless.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Serverless — Lambda və Azure Functions</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

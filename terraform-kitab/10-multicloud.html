@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Cloud Deploy · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 10</div>
+  <h1>Multi-Cloud Deploy</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Bir şirkət nadir hallarda yalnız bir cloud provider ilə qalır — bəzən qiymət, bəzən xüsusiyyət, bəzən də sadəcə şirkət birləşməsi sizi ikinci buluda aparır. Terraform-un provider arxitekturası AWS, Azure və Google Cloud resurslarını eyni konfiqurasiyada, eyni dillə idarə etməyə imkan verir. Bu fəsildə çoxlu provider blokları, alias-lar, credential idarəçiliyi və multi-cloud üçün əməli qaydaları öyrənəcəyik.</div>
+
+  <p class="section-title">1 · Multi-cloud nə üçün lazımdır</p>
+  <div class="card">
+    <h2>Üç əsas motiv</h2>
+    <ul>
+      <li><strong>Vendor lock-in-dən qaçmaq</strong> — bütün infrastrukturunuz tək provider-də olanda qiymət artımı və ya uzunmüddətli kəsinti sizə alternativ qoymur. İki provider ilə danışıqlar masasında da, texniki planda da əliniz güclü olur.</li>
+      <li><strong>Hər provider-in ən güclü tərəfini götürmək</strong> — AWS compute və genişlik baxımından, Azure korporativ inteqrasiya (Active Directory, lisenziyalar) baxımından, Google Cloud isə maşın öyrənməsi və data analitikası baxımından fərqlənir. Multi-cloud sizə hər işin üçün ən uyğun servisi seçmək imkanı verir.</li>
+      <li><strong>Dayanıqlıq</strong> — infrastrukturu müxtəlif cloud mühitlərinə yaymaq fəlakətdən bərpa və yüksək əlçatanlıq üçün əlavə qat yaradır. Bir provider-də region səviyyəli kəsinti olanda xidmət tam dayanmır.</li>
+    </ul>
+    <p>Əvəzində isə mürəkkəblik ödəyirsiniz: iki fərqli IAM modeli, iki fərqli şəbəkə anlayışı, iki fərqli hesab. Məhz burada Terraform işə düşür — konfiqurasiya dili, plan/apply axını və state modeli hər iki tərəf üçün eynidir.</p>
+    <div class="note">Multi-cloud "hər şeyi hər yerdə işlət" demək deyil. Praktikada uğurlu quruluşlar iş yükünü bölür: məsələn əsas tətbiq AWS-də, data anbarı GCP-də, korporativ identity Azure-da. Eyni tətbiqi iki buludda paralel saxlamaq isə xərci və əməliyyat yükünü ikiqat artırır.</div>
+  </div>
+
+  <p class="section-title">2 · Terraform-da açar anlayışlar</p>
+  <div class="card">
+    <h2>a. Bir konfiqurasiyada çoxlu provider</h2>
+    <p>Terraform-un çoxlu bulud ilə eyni anda işləyə bilməsinin arxasında <strong>provider plugin</strong> modeli dayanır. Hər cloud provider-in öz plugin-i var və o plugin həmin provider-in API-si ilə danışır. Konfiqurasiyada neçə <code>provider</code> bloku yazsanız, Terraform o qədər plugin yükləyir və hər resursu öz provider-inə yönləndirir.</p>
+
+    <h2>b. Provider alias-ları</h2>
+    <p>Eyni provider-in birdən çox nüsxəsi lazım olanda — məsələn iki AWS region-u, iki Azure subscription-u — <code>alias</code> arqumentindən istifadə edirsiniz. Alias eyni plugin-in fərqli konfiqurasiyalı ikinci nüsxəsini yaradır, resurs isə <code>provider = aws.us_west</code> yazaraq hansı nüsxəni istədiyini bildirir.</p>
+
+    <table>
+      <tr><th>Vəziyyət</th><th>Yanaşma</th></tr>
+      <tr><td>AWS + Azure eyni konfiqurasiyada</td><td>İki ayrı <code>provider</code> bloku, alias lazım deyil</td></tr>
+      <tr><td>İki AWS region-u</td><td>Eyni provider, fərqli <code>alias</code> dəyərləri</td></tr>
+      <tr><td>İki Azure subscription-u</td><td><code>azurerm</code> provider-i alias ilə təkrarlanır</td></tr>
+      <tr><td>On-prem vSphere + AWS</td><td><code>vsphere</code> və <code>aws</code> provider-ləri yan-yana</td></tr>
+      <tr><td>Modul daxilində fərqli provider</td><td><code>providers = { aws = aws.us_west }</code> ötürülür</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">3 · Nümunə: AWS və Azure-da eyni anda deploy</p>
+  <div class="card">
+    <h2>Qovluq quruluşu</h2>
+    <pre><code>/multi-cloud
+  ├── main.tf
+  ├── variables.tf
+  └── outputs.tf</code></pre>
+
+    <h3>Addım 1 — Provider-ləri konfiqurasiya et</h3>
+    <pre><code><span class="c"># AWS provider konfiqurasiyası</span>
+<span class="k">provider</span> <span class="s">"aws"</span> {
+  region     = var.aws_region
+  access_key = var.aws_access_key
+  secret_key = var.aws_secret_key
+}
+
+<span class="c"># Azure provider konfiqurasiyası</span>
+<span class="k">provider</span> <span class="s">"azurerm"</span> {
+  features {}
+  subscription_id = var.azure_subscription_id
+  client_id       = var.azure_client_id
+  client_secret   = var.azure_client_secret
+  tenant_id       = var.azure_tenant_id
+}</code></pre>
+    <p>Burada iki provider paralel təyin olunur: <code>aws</code> bloku resursları göstərilən AWS region-una, <code>azurerm</code> bloku isə verilmiş Azure subscription-una yerləşdirir. <code>features {}</code> bloku azurerm provider-i üçün məcburidir — boş qalsa belə yazılmalıdır.</p>
+
+    <h3>Addım 2 — AWS-də EC2 instance</h3>
+    <pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_aws_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  tags = {
+    Name = <span class="s">"AWS-Instance"</span>
+  }
+}</code></pre>
+
+    <h3>Addım 3 — Azure-da virtual maşın</h3>
+    <p>Azure tərəfdə VM tək resurs deyil: əvvəlcə resource group, sonra virtual network, sonra network interface, ən sonda isə maşının özü yaradılır. Bu, AWS-dən fərqli düşüncə modelidir və multi-cloud yazarkən ilk qarşılaşacağınız fərqlərdəndir.</p>
+    <pre><code><span class="k">resource</span> <span class="s">"azurerm_resource_group"</span> <span class="s">"my_rg"</span> {
+  name     = <span class="s">"myResourceGroup"</span>
+  location = <span class="s">"East US"</span>
+}
+
+<span class="k">resource</span> <span class="s">"azurerm_virtual_network"</span> <span class="s">"my_vnet"</span> {
+  name                = <span class="s">"myVNet"</span>
+  address_space       = [<span class="s">"10.0.0.0/16"</span>]
+  location            = azurerm_resource_group.my_rg.location
+  resource_group_name = azurerm_resource_group.my_rg.name
+}
+
+<span class="k">resource</span> <span class="s">"azurerm_network_interface"</span> <span class="s">"my_nic"</span> {
+  name                = <span class="s">"myNIC"</span>
+  location            = azurerm_resource_group.my_rg.location
+  resource_group_name = azurerm_resource_group.my_rg.name
+
+  ip_configuration {
+    name                          = <span class="s">"myNICConfig"</span>
+    subnet_id                     = azurerm_subnet.my_subnet.id
+    private_ip_address_allocation = <span class="s">"Dynamic"</span>
+  }
+}
+
+<span class="k">resource</span> <span class="s">"azurerm_windows_virtual_machine"</span> <span class="s">"my_vm"</span> {
+  name                  = <span class="s">"myWindowsVM"</span>
+  resource_group_name   = azurerm_resource_group.my_rg.name
+  location              = azurerm_resource_group.my_rg.location
+  size                  = <span class="s">"Standard_DS1_v2"</span>
+  admin_username        = <span class="s">"adminuser"</span>
+  admin_password        = var.vm_admin_password  <span class="c"># parolu koda yazma!</span>
+  network_interface_ids = [azurerm_network_interface.my_nic.id]
+
+  os_disk {
+    caching              = <span class="s">"ReadWrite"</span>
+    storage_account_type = <span class="s">"Standard_LRS"</span>
+  }
+}</code></pre>
+    <div class="warn">Mənbə nümunələrində <code>admin_password = "P@ssw0rd123!"</code> kimi sabit parollara tez-tez rast gəlinir. Belə yazılmış parol state faylına və git tarixçəsinə düşür. Həmişə <code>variable</code> + <code>sensitive = true</code>, daha yaxşısı isə Key Vault / Secrets Manager istifadə edin.</div>
+
+    <h3>Addım 4 — Nəticələri output kimi qaytar</h3>
+    <pre><code><span class="k">output</span> <span class="s">"aws_instance_public_ip"</span> {
+  value = aws_instance.my_aws_instance.public_ip
+}
+
+<span class="k">output</span> <span class="s">"azure_vm_public_ip"</span> {
+  value = azurerm_windows_virtual_machine.my_vm.public_ip_address
+}</code></pre>
+
+    <h3>Addım 5 — Tətbiq et</h3>
+    <pre><code>terraform init    <span class="c"># hər iki provider plugin-ini yükləyir</span>
+terraform plan    <span class="c"># planı nəzərdən keçir</span>
+terraform apply   <span class="c"># hər iki buludda eyni anda yaradır</span></code></pre>
+    <p>Bir <code>apply</code> əmri həm AWS-də EC2 instance-ı, həm də Azure-da virtual maşını qurur. Aralarında birbaşa asılılıq olmadığı üçün Terraform onları paralel işlədir.</p>
+    <div class="tip"><code>terraform init</code> multi-cloud layihələrdə həmişə daha uzun çəkir, çünki hər provider plugin-i onlarla meqabayt ola bilir. CI-da <code>.terraform</code> qovluğunu cache-ə salmaq pipeline vaxtını gözlə görünəcək qədər azaldır.</div>
+  </div>
+
+  <p class="section-title">4 · Multi-cloud credential idarəçiliyi</p>
+  <div class="card">
+    <h2>a. Environment dəyişənləri</h2>
+    <p>Həssas açarları konfiqurasiya faylına yazmaq multi-cloud-da ikiqat təhlükəlidir — bir sızma iki buludu birdən açır. Ən sadə düzgün yol credential-ları environment dəyişənləri ilə ötürməkdir; Terraform onları avtomatik oxuyur və <code>provider</code> blokunda heç nə yazmağa ehtiyac qalmır.</p>
+    <pre><code><span class="c"># AWS credential-ları</span>
+<span class="k">export</span> AWS_ACCESS_KEY_ID=<span class="s">"your-aws-access-key"</span>
+<span class="k">export</span> AWS_SECRET_ACCESS_KEY=<span class="s">"your-aws-secret-key"</span>
+
+<span class="c"># Azure credential-ları</span>
+<span class="k">export</span> ARM_CLIENT_ID=<span class="s">"your-azure-client-id"</span>
+<span class="k">export</span> ARM_CLIENT_SECRET=<span class="s">"your-azure-client-secret"</span>
+<span class="k">export</span> ARM_TENANT_ID=<span class="s">"your-azure-tenant-id"</span>
+<span class="k">export</span> ARM_SUBSCRIPTION_ID=<span class="s">"your-azure-subscription-id"</span></code></pre>
+
+    <h2>b. Secrets management servisləri</h2>
+    <p>Daha yetkin yanaşma sirləri mərkəzi saxlama xidmətindən dinamik oxumaqdır: AWS Secrets Manager, Azure Key Vault, Google Secret Manager və ya HashiCorp Vault. Bu halda sirr heç vaxt repository-də olmur, rotasiya isə Terraform-dan asılı olmadan aparılır.</p>
+    <pre><code><span class="k">data</span> <span class="s">"aws_secretsmanager_secret_version"</span> <span class="s">"db_password"</span> {
+  secret_id = <span class="s">"db_password"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_db_instance"</span> <span class="s">"my_db"</span> {
+  allocated_storage = 20
+  engine            = <span class="s">"mysql"</span>
+  instance_class    = <span class="s">"db.t2.micro"</span>
+  password          = data.aws_secretsmanager_secret_version.db_password.secret_string
+}</code></pre>
+    <div class="warn">Secrets Manager-dən oxunan dəyər yenə də <strong>state faylına düz mətnlə yazılır</strong>. Bu, Terraform-un işləmə prinsipidir və qaçılmazdır. Buna görə state mütləq şifrələnmiş remote backend-də (S3 + KMS, Azure Storage + encryption) saxlanmalı və ona giriş məhdud olmalıdır.</div>
+
+    <table>
+      <tr><th>Üsul</th><th>Nə vaxt</th><th>Zəif tərəf</th></tr>
+      <tr><td>Environment dəyişənləri</td><td>Lokal iş, sadə CI</td><td>Rotasiya əl ilə, prosesə sızma riski</td></tr>
+      <tr><td>Secrets Manager / Key Vault</td><td>Komanda, prod</td><td>Dəyər yenə state-ə düşür</td></tr>
+      <tr><td>OIDC / Workload Identity</td><td>CI/CD pipeline-ları</td><td>İlkin qurulma daha çətindir</td></tr>
+      <tr><td>IAM Role / Managed Identity</td><td>Bulud daxilində işləyən agent</td><td>Yalnız həmin bulud daxilində keçərli</td></tr>
+      <tr><td>Fayla yazılmış açar</td><td>Heç vaxt</td><td>Git-ə düşür, sızma qaçılmaz</td></tr>
+    </table>
+    <div class="tip">Ən yaxşı seçim uzunömürlü açarı ümumiyyətlə yaratmamaqdır: GitLab CI və GitHub Actions hər ikisi OIDC ilə AWS və Azure-a qısamüddətli token alaraq giriş edə bilir. Belə halda sızacaq bir sirr yoxdur.</div>
+  </div>
+
+  <p class="section-title">5 · Multi-cloud üçün əməli qaydalar</p>
+  <div class="card">
+    <h2>a. Provider-lər arasında ardıcıllıq</h2>
+    <p>Adlandırma, teq və konfiqurasiya nümunələri hər iki buludda eyni olmalıdır. Bu, resursların izlənməsini, xərc hesabatını və avtomatlaşdırmanı sadələşdirir — eyni <code>Project</code> teqi ilə iki fərqli buludun hesabını yan-yana qoya bilirsiniz.</p>
+    <pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  tags = {
+    Environment = <span class="s">"prod"</span>
+    Project     = <span class="s">"multi-cloud-demo"</span>
+  }
+}
+
+<span class="k">resource</span> <span class="s">"azurerm_virtual_machine"</span> <span class="s">"my_vm"</span> {
+  tags = {
+    Environment = <span class="s">"prod"</span>
+    Project     = <span class="s">"multi-cloud-demo"</span>
+  }
+}</code></pre>
+    <div class="note">Teq açarlarında böyük-kiçik hərf fərqinə diqqət yetirin: AWS teq açarlarını hərfə həssas saxlayır, Azure isə bəzi hallarda normallaşdırır. Komanda daxilində bir konvensiya seçin (məsələn həmişə <code>PascalCase</code>) və <code>default_tags</code> ilə mərkəzləşdirin.</div>
+
+    <h2>b. Monitorinq və müşahidə</h2>
+    <p>Hər buludun öz monitorinq paneli var, lakin siz vahid mənzərəyə ehtiyac duyursunuz. Prometheus, Grafana və Datadog kimi vasitələr multi-cloud metrikaları bir yerdə toplaya bilir — beləliklə "hansı buludda problem var" sualına bir ekrandan cavab verirsiniz.</p>
+
+    <h2>c. Mərkəzləşdirilmiş loglama</h2>
+    <p>ELK Stack (Elasticsearch, Logstash, Kibana), Azure Monitor və ya AWS CloudWatch vasitəsilə müxtəlif provider-lərin loglarını tək yerə toplayın. Multi-cloud mühitdə problemi araşdırarkən iki fərqli konsol arasında gedib-gəlmək ən çox vaxt itirən işdir.</p>
+
+    <div class="ai">AI ilə iş: Copilot və ya Claude-dan multi-cloud konfiqurasiya istəyəndə provider-i açıq yazın — "AWS və Azure üçün, azurerm 3.x sintaksisi ilə". Əks halda model çox vaxt köhnəlmiş <code>azurerm_virtual_machine</code> resursunu təklif edir; halbuki müasir sintaksis <code>azurerm_windows_virtual_machine</code> / <code>azurerm_linux_virtual_machine</code>-dir. Yaradılan kodu həmişə <code>terraform validate</code> və provider sənədi ilə yoxlayın.</div>
+  </div>
+
+  <p class="section-title">6 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>Multi-cloud üç şey verir — vendor lock-in-dən azadlıq, hər provider-in güclü tərəfi və dayanıqlıq; əvəzində əməliyyat mürəkkəbliyi gətirir.</li>
+      <li>Bir konfiqurasiyada istənilən sayda <code>provider</code> bloku ola bilər; eyni provider-in təkrar nüsxəsi üçün <code>alias</code> işlədilir və resurs <code>provider = aws.us_west</code> ilə seçim edir.</li>
+      <li>Credential-ları heç vaxt konfiqurasiyaya yazmayın — environment dəyişənləri, Secrets Manager / Key Vault, ən yaxşısı isə OIDC ilə qısamüddətli token.</li>
+      <li>Sirlər state faylına düz mətnlə düşür: state mütləq şifrələnmiş remote backend-də saxlanmalı, girişi məhdudlaşdırılmalıdır.</li>
+      <li>Ardıcıl teq və adlandırma, vahid monitorinq və mərkəzləşdirilmiş loglama multi-cloud-u idarə oluna bilən saxlayan üç sütundur.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="09-cicd.html"><div class="lbl">← Əvvəlki</div><div class="ttl">CI/CD İnteqrasiyası</div></a>
+    <a href="11-dr-ha.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Fəlakətdən Bərpa və Yüksək Əlçatanlıq</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

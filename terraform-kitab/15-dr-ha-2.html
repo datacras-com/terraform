@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DR/HA — Praktik Nümunələr · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 15</div>
+  <h1>DR/HA — Praktik Nümunələr</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Bu fəsildə fəlakətdən bərpa (DR) və yüksək əlçatanlıq (HA) anlayışlarını konkret Terraform kodu üzərində qururuq: iki region-a yayılmış yerləşdirmə, Route 53 ilə DNS failover, RDS və S3 üçün avtomatik ehtiyat nüsxə, Multi-AZ failover və nəhayət hər şeyi bağlayan monitorinq qatı.</div>
+
+  <p class="section-title">1 · DR və HA — nə üçün lazımdır?</p>
+  <div class="card">
+    <h2>İki fərqli məqsəd</h2>
+    <p>DR və HA infrastrukturun dayanıqlı olmasını, nasazlıq və kəsilmələr zamanı işləməyə davam etməsini təmin edir. Hər ikisi dayanma müddətini, məlumat itkisini və xidmət pozulmasını minimuma endirməyə yönəlib, lakin fərqli suallara cavab verir:</p>
+    <table>
+      <tr><th></th><th>DR (Disaster Recovery)</th><th>HA (High Availability)</th></tr>
+      <tr><td>Sualı</td><td>Fəlakətdən sonra necə bərpa edəcəyik?</td><td>Nasazlıq zamanı xidmət necə davam edəcək?</td></tr>
+      <tr><td>Ssenari</td><td>Data mərkəzinin itməsi, təbii fəlakət, region kəsilməsi</td><td>Bir instance, bir AZ və ya bir komponentin sıradan çıxması</td></tr>
+      <tr><td>Alət</td><td>Ehtiyat nüsxə, replikasiya, ikinci region</td><td>Artıqlıq (redundancy), failover, load balancer</td></tr>
+      <tr><td>Ölçü göstəricisi</td><td>RTO / RPO (bərpa müddəti və məlumat itkisi)</td><td>Uptime faizi (99.9%, 99.99%)</td></tr>
+    </table>
+    <p>Terraform bu strategiyaları kod şəklində təsvir etməyə imkan verir — nəticədə dayanıqlı infrastruktur ardıcıl və təkrarlana bilən şəkildə yerləşdirilir.</p>
+    <div class="note"><strong>RTO və RPO nədir?</strong> RTO (Recovery Time Objective) — xidmətin bərpasına icazə verilən maksimum vaxt. RPO (Recovery Point Objective) — itirilməsinə dözülə bilən maksimum məlumat həcmi (vaxt ilə). 7 günlük gündəlik backup RPO-nu 24 saata bərabər edir; bu sənin biznesin üçün kifayətdirmi — DR dizaynı məhz bu sualla başlayır.</div>
+  </div>
+
+  <p class="section-title">2 · Əsas anlayışlar</p>
+  <div class="card">
+    <h2>a. Çoxregionlu yerləşdirmə</h2>
+    <p>DR və HA-nın əsas strategiyalarından biri infrastrukturu bir neçə region-a yaymaqdır. Bir region sıradan çıxarsa, trafik eyni infrastrukturun yerləşdirildiyi digər region-a yönləndirilir.</p>
+    <h2>b. Replikasiya və failover</h2>
+    <p>Məlumat bütövlüyünü və xidmətin davamlılığını təmin etmək üçün baza, storage və tətbiq kimi resource-lar region-lar arasında replikasiya olunmalıdır. Failover mexanizmi əsas sistem sıradan çıxdıqda avtomatik olaraq ehtiyat sistemə keçidi təmin edir.</p>
+    <h2>c. Ehtiyat nüsxə və bərpa</h2>
+    <p>Baza və storage kimi kritik resource-ların ehtiyat nüsxəsinin avtomatlaşdırılması fəlakət anında məlumatın sürətlə və dəqiq bərpasına imkan verir. Terraform backup cədvəllərini və saxlama qaydalarını idarə edə bilir.</p>
+  </div>
+
+  <p class="section-title">3 · Terraform ilə çoxregionlu yerləşdirmə</p>
+  <div class="card">
+    <h2>AWS üzərində iki region</h2>
+    <p>Aşağıdakı nümunədə tətbiqi iki AWS region-una (US-East və US-West) yerləşdiririk: hər region-da bir EC2 instance, RDS baza və DNS failover üçün Route 53.</p>
+
+    <h3>Addım 1 — hər region üçün provider təyin et</h3>
+<pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-east-1"</span>
+  alias  = <span class="s">"us_east"</span>
+}
+
+<span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-west-2"</span>
+  alias  = <span class="s">"us_west"</span>
+}</code></pre>
+    <p>Burada iki AWS provider-i alias ilə təyin edilir; bundan sonra hər resource hansı region-da yaranacağını <code>provider</code> arqumenti ilə göstərir.</p>
+
+    <h3>Addım 2 — hər region-da EC2 instance yerləşdir</h3>
+<pre><code><span class="c"># US-East region-unda EC2 instance</span>
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"web_us_east"</span> {
+  provider      = aws.us_east
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  tags = {
+    Name = <span class="s">"WebServer-East"</span>
+  }
+}
+
+<span class="c"># US-West region-unda EC2 instance</span>
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"web_us_west"</span> {
+  provider      = aws.us_west
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  tags = {
+    Name = <span class="s">"WebServer-West"</span>
+  }
+}</code></pre>
+    <ul>
+      <li>Hər iki region-da eyni tətbiqi işlədən EC2 instance yaradılır.</li>
+      <li>Beləliklə region səviyyəsində əlçatanlıq təmin olunur.</li>
+    </ul>
+    <div class="warn"><strong>AMI ID region-a bağlıdır:</strong> nümunədə hər iki instance eyni <code>ami-0c55b159cbfafe1f0</code> dəyərini işlədir — praktikada bu işləməz, çünki AMI ID-lər region-lar arasında fərqlidir. Düzgün yol: hər region üçün <code>aws_ami</code> data source ilə ən son image-i axtarmaq və ya region → AMI xəritəsini dəyişən kimi saxlamaq.</div>
+
+    <h3>Addım 3 — Route 53 ilə DNS failover</h3>
+<pre><code><span class="k">resource</span> <span class="s">"aws_route53_zone"</span> <span class="s">"example"</span> {
+  name = <span class="s">"example.com"</span>
+}
+
+<span class="c"># əsas (primary) qeyd — US-East</span>
+<span class="k">resource</span> <span class="s">"aws_route53_record"</span> <span class="s">"primary"</span> {
+  zone_id = aws_route53_zone.example.zone_id
+  name    = <span class="s">"www.example.com"</span>
+  type    = <span class="s">"A"</span>
+
+  alias {
+    name                   = aws_instance.web_us_east.public_ip
+    zone_id                = aws_instance.web_us_east.id
+    evaluate_target_health = <span class="k">true</span>
+  }
+
+  failover_routing_policy {
+    type = <span class="s">"PRIMARY"</span>
+  }
+}
+
+<span class="c"># ehtiyat (secondary) qeyd — US-West</span>
+<span class="k">resource</span> <span class="s">"aws_route53_record"</span> <span class="s">"secondary"</span> {
+  zone_id = aws_route53_zone.example.zone_id
+  name    = <span class="s">"www.example.com"</span>
+  type    = <span class="s">"A"</span>
+
+  alias {
+    name                   = aws_instance.web_us_west.public_ip
+    zone_id                = aws_instance.web_us_west.id
+    evaluate_target_health = <span class="k">true</span>
+  }
+
+  failover_routing_policy {
+    type = <span class="s">"SECONDARY"</span>
+  }
+}</code></pre>
+    <p>Bu konfiqurasiyada:</p>
+    <ul>
+      <li>Route 53 DNS səviyyəsində failover marşrutlaşdırması qurur.</li>
+      <li>US-East-dəki əsas instance sağlamlıq yoxlamasından keçmədikdə trafik avtomatik olaraq US-West-dəki ehtiyat instance-a yönləndirilir.</li>
+    </ul>
+    <div class="tip"><strong>DNS failover-in həqiqi sürəti:</strong> keçid ani deyil — sağlamlıq yoxlamasının aşkarlama vaxtı üstəgəl qeydin TTL-i qədər gecikir. DR ssenarisində TTL-i 60 saniyə kimi aşağı dəyərdə saxla, əks halda 5 dəqiqəlik TTL failover-i praktikada 5 dəqiqəlik kəsilməyə çevirir.</div>
+  </div>
+
+  <p class="section-title">4 · Ehtiyat nüsxələrin avtomatlaşdırılması</p>
+  <div class="card">
+    <h2>a. RDS avtomatik backup</h2>
+    <p>Kritik məlumatın ehtiyat nüsxəsinin avtomatlaşdırılması məlumat itkisindən və infrastruktur nasazlığından bərpanı mümkün edir. Aşağıda RDS bazası üçün gündəlik backup qurulur:</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_db_instance"</span> <span class="s">"mydb"</span> {
+  allocated_storage = 20
+  engine            = <span class="s">"mysql"</span>
+  instance_class    = <span class="s">"db.t2.micro"</span>
+  name              = <span class="s">"mydb"</span>
+  username          = <span class="s">"admin"</span>
+  password          = <span class="s">"password"</span>
+
+  backup_retention_period = 7             <span class="c"># nüsxələr 7 gün saxlanır</span>
+  backup_window           = <span class="s">"01:00-03:00"</span> <span class="c"># backup üçün vaxt aralığı</span>
+}</code></pre>
+    <ul>
+      <li>RDS instance-ı 7 gün saxlanan avtomatik backup ilə yaradılır.</li>
+      <li>Nüsxələr göstərilən vaxt aralığında gündəlik alınır.</li>
+    </ul>
+    <div class="warn"><strong>Nümunədəki parola diqqət:</strong> <code>password = "password"</code> yalnız izahat üçündür. Prod mühitdə parolu heç vaxt koda yazma — 13-cü fəsildə göstərildiyi kimi Secrets Manager-dən oxu və ya <code>manage_master_user_password</code> ilə idarəni RDS-ə həvalə et.</div>
+
+    <h2>b. S3 üçün ehtiyat nüsxə və arxivləşdirmə</h2>
+    <p>Baza ilə yanaşı S3-də saxlanan fayllar da qorunmalıdır. Bunun üçün lifecycle policy-lərdən istifadə edirik:</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_s3_bucket"</span> <span class="s">"my_bucket"</span> {
+  bucket = <span class="s">"my-backup-bucket"</span>
+
+  lifecycle_rule {
+    enabled = <span class="k">true</span>
+
+    transition {
+      days          = 30
+      storage_class = <span class="s">"GLACIER"</span>  <span class="c"># 30 gündən sonra uzunmüddətli arxivə keçir</span>
+    }
+
+    expiration {
+      days = 365  <span class="c"># 365 gündən sonra silinir</span>
+    }
+  }
+}</code></pre>
+    <ul>
+      <li>Bucket-dəki məlumat 30 gündən sonra avtomatik olaraq Glacier-ə köçürülür.</li>
+      <li>365 gündən sonra obyektlər silinir — saxlama xərci nəzarətdə qalır.</li>
+    </ul>
+    <div class="note"><strong>Versiya qeydi:</strong> AWS provider-in yeni versiyalarında <code>lifecycle_rule</code> bloku bucket resource-undan çıxarılıb və ayrıca <code>aws_s3_bucket_lifecycle_configuration</code> resource-una köçürülüb. Məntiq eynidir, yalnız struktur ayrılıb — işlətdiyin provider versiyasının sənədini yoxla.</div>
+  </div>
+
+  <p class="section-title">5 · Avtomatik failover və replikasiya</p>
+  <div class="card">
+    <h2>RDS Multi-AZ</h2>
+    <p>Avtomatik failover əsas infrastruktur sıradan çıxdıqda trafikin fasiləsiz şəkildə ehtiyat infrastruktura yönəldilməsini təmin edir. AWS RDS, Azure SQL və Google Cloud SQL bazalar üçün avtomatik failover dəstəkləyir.</p>
+    <p>AWS RDS-in Multi-AZ rejimi məlumatı avtomatik olaraq başqa availability zone-a replikasiya edir və aparat ya şəbəkə nasazlığında failover təmin edir:</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_db_instance"</span> <span class="s">"mydb"</span> {
+  allocated_storage = 20
+  engine            = <span class="s">"mysql"</span>
+  instance_class    = <span class="s">"db.t2.micro"</span>
+
+  multi_az = <span class="k">true</span>  <span class="c"># Multi-AZ failover aktiv edilir</span>
+
+  name     = <span class="s">"mydb"</span>
+  username = <span class="s">"admin"</span>
+  password = <span class="s">"password"</span>
+}</code></pre>
+    <ul>
+      <li>Multi-AZ seçimi ilə RDS bazanı başqa availability zone-a avtomatik replikasiya edir.</li>
+      <li>Kəsilmə baş verdikdə AWS avtomatik olaraq digər zone-dakı standby instance-a keçir.</li>
+    </ul>
+    <table>
+      <tr><th>Mexanizm</th><th>Nəyi qoruyur</th><th>Tipik keçid vaxtı</th><th>Xərc təsiri</th></tr>
+      <tr><td>Multi-AZ (RDS)</td><td>AZ səviyyəsində nasazlıq</td><td>1–2 dəqiqə, avtomatik</td><td>Təxminən 2 dəfə</td></tr>
+      <tr><td>Read replica (başqa region)</td><td>Region səviyyəsində nasazlıq</td><td>Əl ilə promote — dəqiqələr</td><td>Əlavə instance + trafik</td></tr>
+      <tr><td>Route 53 failover</td><td>Endpoint əlçatanlığı</td><td>Sağlamlıq yoxlaması + TTL</td><td>Az</td></tr>
+      <tr><td>Avtomatik backup</td><td>Məlumat itkisi, səhv silmə</td><td>Bərpa saatlarla ölçülür</td><td>Storage xərci</td></tr>
+    </table>
+    <div class="tip"><strong>Diqqət yetir:</strong> Multi-AZ HA mexanizmidir, DR deyil. O, bütöv region kəsiləndə və ya cədvəl səhvən silinəndə səni xilas etmir — bunun üçün cross-region replika və backup lazımdır. İkisini bir-birinin əvəzi kimi görmək DR planının ən çox yayılan boşluğudur.</div>
+  </div>
+
+  <p class="section-title">6 · Monitorinq və xəbərdarlıqlar</p>
+  <div class="card">
+    <h2>CloudWatch ilə EC2 izləməsi</h2>
+    <p>Nasazlığı vaxtında görmədən nə HA, nə də DR işləyir. Terraform CloudWatch, Azure Monitor və Google Cloud Monitoring kimi alətləri konfiqurasiya edə bilir:</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_cloudwatch_metric_alarm"</span> <span class="s">"cpu_alarm"</span> {
+  alarm_name          = <span class="s">"high-cpu-usage"</span>
+  comparison_operator = <span class="s">"GreaterThanThreshold"</span>
+  evaluation_periods  = 2
+  metric_name         = <span class="s">"CPUUtilization"</span>
+  namespace           = <span class="s">"AWS/EC2"</span>
+  period              = 60
+  statistic           = <span class="s">"Average"</span>
+  threshold           = 80
+
+  <span class="c"># xəbərdarlıq SNS topic vasitəsilə komandaya çatır</span>
+  alarm_actions = [aws_sns_topic.my_sns_topic.arn]
+
+  dimensions = {
+    InstanceId = aws_instance.web_us_east.id
+  }
+}</code></pre>
+    <ul>
+      <li>CPU istifadəsi 80%-i keçdikdə alarm işə düşür.</li>
+      <li>Bildiriş SNS topic vasitəsilə administratorlara göndərilir.</li>
+    </ul>
+    <div class="ai"><strong>Copilot ilə iş:</strong> çoxregionlu qurğuda eyni alarm dəstini hər region üçün təkrarlamaq lazım gəlir. Copilot-a bu bloku <code>for_each</code> ilə region xəritəsi üzərində gəzən modula çevirməyi tapşır — nəticəni yoxlayarkən <code>provider</code> arqumentinin düzgün ötürüldüyünə xüsusi diqqət yetir, model bu detalı tez-tez atlayır.</div>
+  </div>
+
+  <p class="section-title">7 · DR/HA üçün ən yaxşı praktikalar</p>
+  <div class="card">
+    <h2>a. Çoxregionlu və çoxzonalı qurğu işlət</h2>
+    <p>Kritik tətbiqləri bir neçə region və ya availability zone-da yerləşdir — dayanıqlılıq artır, dayanma riski azalır.</p>
+    <h2>b. Failover və backup-ı avtomatlaşdır</h2>
+    <p>Failover mexanizmlərini avtomatlaşdır və müntəzəm sına ki, lazım olan anda həqiqətən işlədiyinə əmin olasan. Eyni qayda backup və saxlama müddətlərinə də aiddir.</p>
+    <h2>c. DR planını izlə və sına</h2>
+    <p>Mütəmadi DR məşqləri keçir: bərpa prosedurunun addımlarını əsl kəsilmə anında deyil, əvvəlcədən yoxla. Monitorinq və xəbərdarlıq sisteminin nasazlıq zamanı vaxtında bildiriş göndərdiyinə əmin ol.</p>
+    <div class="warn"><strong>Sınanmamış DR planı — plan deyil.</strong> Backup-ın alındığını göstərən yaşıl işarə heç nə sübut etmir; sübut yalnız uğurla bərpa edilmiş bazadır. Rüblük bir dəfə backup-dan sınaq mühiti qaldır və bərpa müddətini ölç — bu, sənin faktiki RTO göstəricindir.</div>
+  </div>
+
+  <p class="section-title">8 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>HA lokal nasazlığa (instance, AZ) qarşı işləyir, DR isə region itkisi və məlumat itkisi ssenarilərinə hazırlıqdır — biri digərini əvəz etmir.</li>
+      <li>Çoxregionlu qurğuda alias-lı provider-lər işlədilir; AMI kimi region-a bağlı dəyərləri sabit yazma, data source ilə tap.</li>
+      <li>Route 53 failover DNS səviyyəsində keçid verir — sürəti sağlamlıq yoxlaması və TTL müəyyən edir.</li>
+      <li>RDS-də <code>backup_retention_period</code> və <code>multi_az</code>, S3-də lifecycle qaydaları bir neçə sətirlə ciddi dayanıqlılıq qazandırır.</li>
+      <li>DR planını müntəzəm sına və faktiki RTO/RPO göstəricilərini ölç — sınanmamış bərpa proseduru gözlənilməz an üçün yararsızdır.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="14-compliance.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Uyğunluq (Compliance) və Audit</div></a>
+    <a href="16-cost.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Xərc İdarəetməsi</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

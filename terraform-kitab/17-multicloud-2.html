@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Cloud — Praktik Nümunələr · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 17</div>
+  <h1>Multi-Cloud — Praktik Nümunələr</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Multi-cloud sadəcə «iki bulud işlətmək» deyil — bir kod bazasından fərqli provider-ləri idarə etmək bacarığıdır. Bu fəsildə bir Terraform konfiqurasiyası ilə AWS-də EC2, Azure-da isə virtual maşın quracaq, provider alias-larını, state idarəetməsini, kredensial təhlükəsizliyini və iki bulud arasında şəbəkə bağlantısını nəzərdən keçirəcəyik.</div>
+
+  <p class="section-title">1 · Niyə multi-cloud?</p>
+  <div class="card">
+    <h2>Qərarın arxasındakı səbəblər</h2>
+    <p>Təşkilatlar bir neçə bulud provider-ini eyni anda işlətməyi adətən aşağıdakı səbəblərdən seçirlər:</p>
+    <ul>
+      <li><strong>Vendor asılılığından qaçmaq</strong> — tək bir provider-in ekosisteminə bağlanmamaq həm texniki çeviklik, həm də müqavilə danışıqlarında mövqe verir.</li>
+      <li><strong>Dayanıqlıq və ehtiyat</strong> — iş yükünü buludlar arasında bölmək bir provider-in tam kəsintisi zamanı xidmətin dayanmaması deməkdir.</li>
+      <li><strong>Xərc optimallaşdırması</strong> — provider-lərin qiymət modelləri fərqlidir; hər iş yükü üçün ən sərfəli platformanı seçmək mümkün olur.</li>
+      <li><strong>Hər provider-in güclü tərəfi</strong> — AWS compute və ekosistem genişliyində, Azure korporativ inteqrasiya və Active Directory tərəfdə, Google Cloud isə data və maşın öyrənməsi xidmətlərində önə çıxır.</li>
+    </ul>
+    <div class="warn">Multi-cloud pulsuz deyil. Hər əlavə provider yeni IAM modeli, yeni şəbəkə anlayışları, yeni monitorinq alətləri və komandanın öyrənməli olduğu yeni bilik deməkdir. Konkret səbəb yoxdursa (uyğunluq tələbi, müştəri tələbi, real DR ehtiyacı) — bir buludda qalmaq çox vaxt daha doğru mühəndis qərarıdır.</div>
+  </div>
+
+  <p class="section-title">2 · Əsas anlayışlar</p>
+  <div class="card">
+    <h2>a · Provider arxitekturası</h2>
+    <p>Terraform-un multi-cloud işləməsini mümkün edən şey onun provider arxitekturasıdır. Hər bulud platformasının öz provider plugin-i var və o, platformanın API-si ilə danışır. Eyni konfiqurasiyada bir neçə provider təyin edərək fərqli platformalarda resurs yarada bilərsən — Terraform hər resursu hansı provider-in idarə etdiyini bilir.</p>
+
+    <h2>b · Provider alias-ları</h2>
+    <p>Multi-cloud və ya multi-region ssenarilərində eyni provider-in bir neçə nüsxəsi lazım olur: məsələn, biri <code>us-west-2</code>, digəri <code>eu-north-1</code> üçün. Terraform bunu <strong>alias</strong> mexanizmi ilə həll edir: hər nüsxəyə ad verirsən və resursda <code>provider = aws.&lt;alias&gt;</code> yazaraq hansı nüsxənin işlədiləcəyini göstərirsən.</p>
+
+    <table>
+      <tr><th>Anlayış</th><th>Rolu</th><th>Nümunə</th></tr>
+      <tr><td>Provider</td><td>Platformanın API-si ilə əlaqə</td><td><code>aws</code>, <code>azurerm</code>, <code>google</code></td></tr>
+      <tr><td>Alias</td><td>Eyni provider-in ikinci konfiqurasiyası</td><td><code>aws.aws_us_west</code></td></tr>
+      <tr><td>Backend</td><td>State faylının saxlandığı yer</td><td><code>s3</code>, <code>azurerm</code>, <code>gcs</code></td></tr>
+      <tr><td>Modul</td><td>Təkrar işlədilən kod bloku</td><td><code>modules/network</code></td></tr>
+      <tr><td>Output</td><td>Buludlar arası dəyər ötürülməsi</td><td>public IP, VPC ID</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">3 · Nümunə: AWS və Azure birlikdə</p>
+  <div class="card">
+    <h2>Addım 1 · Hər iki provider-i təyin et</h2>
+    <p>Bir konfiqurasiyada həm AWS, həm Azure resurslarını idarə edəcəyik. Əvvəlcə provider blokları:</p>
+<pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-west-2"</span>
+  alias  = <span class="s">"aws_us_west"</span>
+}
+
+<span class="k">provider</span> <span class="s">"azurerm"</span> {
+  features {}
+  alias = <span class="s">"azure_west_us"</span>
+}</code></pre>
+    <p>Burada AWS provider-i US-West regionuna, Azure provider-i isə Azure-un West US bölgəsindəki resurslar üçün qurulub. <code>features {}</code> bloku <code>azurerm</code> provider-i üçün məcburidir — boş olsa belə yazılmalıdır.</p>
+    <div class="note">Alias təyin edəndə həmin provider artıq <strong>standart</strong> provider olmur. Yəni hər resurs blokunda <code>provider = aws.aws_us_west</code> yazmalısan. Əgər resursların çoxu bir konfiqurasiyadan istifadə edirsə, onu alias-sız (standart) saxla, yalnız istisnalar üçün alias yarat.</div>
+
+    <h2>Addım 2 · AWS-də EC2 instance</h2>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"web_server_aws"</span> {
+  provider      = aws.aws_us_west
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  tags = {
+    Name = <span class="s">"WebServer-AWS"</span>
+  }
+}</code></pre>
+    <p>Bu blok AWS-in US-West regionunda sadə bir EC2 instance yaradır. Diqqət et: <code>provider</code> arqumenti resursu konkret provider nüsxəsinə bağlayır.</p>
+
+    <h2>Addım 3 · Azure-da virtual maşın</h2>
+    <p>Azure tərəfdə virtual maşın tək resurs deyil — əvvəlcə resource group, virtual şəbəkə və şəbəkə interfeysi lazımdır. Bu, Azure-un resurs modelinin AWS-dən fərqləndiyi yerlərdən biridir.</p>
+<pre><code><span class="k">resource</span> <span class="s">"azurerm_resource_group"</span> <span class="s">"my_rg"</span> {
+  provider = azurerm.azure_west_us
+  name     = <span class="s">"myResourceGroup"</span>
+  location = <span class="s">"West US"</span>
+}
+
+<span class="k">resource</span> <span class="s">"azurerm_virtual_network"</span> <span class="s">"my_vnet"</span> {
+  provider            = azurerm.azure_west_us
+  name                = <span class="s">"myVNet"</span>
+  address_space       = [<span class="s">"10.0.0.0/16"</span>]
+  location            = azurerm_resource_group.my_rg.location
+  resource_group_name = azurerm_resource_group.my_rg.name
+}
+
+<span class="k">resource</span> <span class="s">"azurerm_subnet"</span> <span class="s">"my_subnet"</span> {
+  provider             = azurerm.azure_west_us
+  name                 = <span class="s">"internal"</span>
+  resource_group_name  = azurerm_resource_group.my_rg.name
+  virtual_network_name = azurerm_virtual_network.my_vnet.name
+  address_prefixes     = [<span class="s">"10.0.1.0/24"</span>]
+}
+
+<span class="k">resource</span> <span class="s">"azurerm_network_interface"</span> <span class="s">"my_nic"</span> {
+  provider            = azurerm.azure_west_us
+  name                = <span class="s">"myNIC"</span>
+  location            = azurerm_resource_group.my_rg.location
+  resource_group_name = azurerm_resource_group.my_rg.name
+
+  ip_configuration {
+    name                          = <span class="s">"myNICConfig"</span>
+    subnet_id                     = azurerm_subnet.my_subnet.id
+    private_ip_address_allocation = <span class="s">"Dynamic"</span>
+  }
+}
+
+<span class="k">resource</span> <span class="s">"azurerm_linux_virtual_machine"</span> <span class="s">"my_vm"</span> {
+  provider              = azurerm.azure_west_us
+  name                  = <span class="s">"myLinuxVM"</span>
+  location              = azurerm_resource_group.my_rg.location
+  resource_group_name   = azurerm_resource_group.my_rg.name
+  network_interface_ids = [azurerm_network_interface.my_nic.id]
+  size                  = <span class="s">"Standard_DS1_v2"</span>
+  admin_username        = <span class="s">"adminuser"</span>
+  admin_password        = var.vm_admin_password
+
+  os_disk {
+    caching              = <span class="s">"ReadWrite"</span>
+    storage_account_type = <span class="s">"Standard_LRS"</span>
+  }
+}</code></pre>
+    <p>Nümunədə ardıcıllıqla resource group, virtual şəbəkə, subnet, şəbəkə interfeysi və nəhayət Linux virtual maşını yaradılır. Bu, Terraform-un AWS resursları ilə yanaşı Azure resurslarını da eyni iş axınında idarə edə bildiyini göstərir.</p>
+    <div class="warn">Mənbə nümunədə parol birbaşa kodda (<code>admin_password = "P@ssw0rd123!"</code>) yazılmışdı — bunu heç vaxt etmə. Parol həm git tarixçəsinə, həm də state faylına düşür. Yuxarıdakı variantda o, dəyişənə köçürülüb; daha yaxşı yanaşma isə paroldan tamamilə imtina edib SSH açarı işlətməkdir (<code>admin_ssh_key</code> bloku) və <code>disable_password_authentication = true</code> qoymaqdır.</div>
+    <div class="note">Mənbə mətnindəki <code>azurerm_virtual_network.my_vnet.subnets[0].id</code> ifadəsi işləmir — Azure provider-də subnet ayrıca resursdur. Yuxarıda ona görə <code>azurerm_subnet</code> resursu əlavə olunub və NIC ona istinad edir.</div>
+
+    <h2>Addım 4 · Nəticələri output kimi vermək</h2>
+    <p>İki buludda nə yaradıldığını görmək üçün hər iki maşının ünvanını output kimi çıxaraq:</p>
+<pre><code><span class="k">output</span> <span class="s">"aws_instance_public_ip"</span> {
+  value = aws_instance.web_server_aws.public_ip
+}
+
+<span class="k">output</span> <span class="s">"azure_vm_public_ip"</span> {
+  value = azurerm_linux_virtual_machine.my_vm.public_ip_address
+}</code></pre>
+
+    <h2>Addım 5 · Tətbiq et</h2>
+<pre><code>terraform init   <span class="c"># provider-ləri yüklə</span>
+terraform plan   <span class="c"># icra planını nəzərdən keçir</span>
+terraform apply  <span class="c"># hər iki buludda resursları yarat</span></code></pre>
+    <p>Tək bir <code>apply</code> əmri həm AWS, həm də Azure tərəfdə resursları yaradır. Terraform asılılıq qrafını qurarkən provider sərhədini nəzərə almır — resurslar arasındakı istinadlara baxır, ona görə də iki buludda paralel işləyə bilir.</p>
+  </div>
+
+  <p class="section-title">4 · Multi-cloud resurslarının idarə olunması</p>
+  <div class="card">
+    <h2>a · State-in idarə edilməsi</h2>
+    <p>Multi-cloud mühitdə state-in düzgün saxlanması daha da kritikdir. Remote backend (S3, Azure Blob Storage və ya Google Cloud Storage) state faylını mərkəzləşdirir, komanda işini mümkün edir və eyni anda iki nəfərin apply etməsinin qarşısını alır.</p>
+<pre><code><span class="k">terraform</span> {
+  backend <span class="s">"azurerm"</span> {
+    storage_account_name = <span class="s">"mystorageaccount"</span>
+    container_name       = <span class="s">"tfstate"</span>
+    key                  = <span class="s">"terraform.tfstate"</span>
+  }
+}</code></pre>
+    <p>Bu konfiqurasiya state faylını Azure Blob Storage konteynerində saxlayır — yəni fayl lokal maşında deyil, hamının çata bildiyi mərkəzi yerdə olur.</p>
+    <div class="tip">Backend yalnız bir dənə ola bilər. Yəni AWS və Azure resursları eyni konfiqurasiyadadırsa, state hansısa birində saxlanacaq. Praktikada daha yaxşı yanaşma budur: hər bulud üçün ayrı state (ayrı qovluq və ya workspace), aralarındakı əlaqə isə <code>terraform_remote_state</code> data source-u ilə qurulur. Belədə bir buludda edilən dəyişiklik digərinin state-ini riskə atmır.</div>
+
+    <h2>b · Kredensialların təhlükəsiz idarəsi</h2>
+    <p>Bir neçə buludun açarını eyni anda saxlamaq təhlükəsizlik riskini artırır. Kredensialları heç vaxt konfiqurasiyaya yazma — mühit dəyişənlərindən və ya secret saxlama alətlərindən (AWS Secrets Manager, Azure Key Vault, Google Secret Manager) istifadə et.</p>
+<pre><code><span class="k">export</span> AWS_ACCESS_KEY_ID=<span class="s">"your-aws-access-key"</span>
+<span class="k">export</span> AWS_SECRET_ACCESS_KEY=<span class="s">"your-aws-secret-key"</span>
+
+<span class="k">export</span> ARM_CLIENT_ID=<span class="s">"your-azure-client-id"</span>
+<span class="k">export</span> ARM_CLIENT_SECRET=<span class="s">"your-azure-client-secret"</span>
+<span class="k">export</span> ARM_SUBSCRIPTION_ID=<span class="s">"your-azure-subscription-id"</span>
+<span class="k">export</span> ARM_TENANT_ID=<span class="s">"your-azure-tenant-id"</span></code></pre>
+    <p>Terraform provider bloklarını icra edərkən bu dəyişənləri avtomatik oxuyur — konfiqurasiyada heç nə yazmaq lazım gəlmir.</p>
+    <div class="tip">CI/CD-də statik açar yerinə qısamüddətli identifikasiyaya keç: GitLab/GitHub OIDC ilə AWS-də <code>AssumeRoleWithWebIdentity</code>, Azure-da isə Workload Identity Federation işlədilir. Belədə pipeline-da saxlanacaq uzunömürlü secret ümumiyyətlə qalmır.</div>
+  </div>
+
+  <p class="section-title">5 · Şəbəkə: buludlar necə danışır</p>
+  <div class="card">
+    <h2>İki bulud arasında site-to-site VPN</h2>
+    <p>Fərqli buludlardakı resursların bir-biri ilə təhlükəsiz əlaqəsi multi-cloud-un ən çətin hissəsidir. Ən çox işlədilən həll AWS ilə Azure arasında site-to-site VPN tunelidir.</p>
+    <p><strong>Addım 1 — AWS tərəfdə Virtual Private Gateway:</strong></p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_vpn_gateway"</span> <span class="s">"my_vgw"</span> {
+  vpc_id = aws_vpc.my_vpc.id
+}</code></pre>
+    <p><strong>Addım 2 — Azure tərəfdə VPN Gateway:</strong></p>
+<pre><code><span class="k">resource</span> <span class="s">"azurerm_virtual_network_gateway"</span> <span class="s">"azure_vpn_gw"</span> {
+  name                = <span class="s">"azure-vpn-gateway"</span>
+  location            = <span class="s">"West US"</span>
+  resource_group_name = azurerm_resource_group.my_rg.name
+  type                = <span class="s">"Vpn"</span>
+  vpn_type            = <span class="s">"RouteBased"</span>
+  sku                 = <span class="s">"Standard"</span>
+}</code></pre>
+    <p><strong>Addım 3 — tuneli qur:</strong> hər iki tərəfdə gateway hazır olandan sonra AWS-də <code>aws_customer_gateway</code> və <code>aws_vpn_connection</code> resursları ilə bağlantı yaradılır. Azure gateway-in public IP-si AWS-də customer gateway kimi, AWS tərəfin IP-si isə Azure-da local network gateway kimi göstərilir — yəni hər bulud digərini «xarici sayt» kimi tanıyır.</p>
+    <div class="warn">Şəbəkə planlaşdırmasında ən çox təkrarlanan səhv CIDR üst-üstə düşməsidir. AWS VPC və Azure VNet fərqli diapazonlarda olmalıdır (məsələn, AWS <code>10.40.0.0/16</code>, Azure <code>10.50.0.0/16</code>). Üst-üstə düşən şəbəkələr arasında routing qurmaq mümkün deyil, düzəltmək üçün isə bütün şəbəkəni yenidən yaratmaq lazım gəlir.</div>
+    <div class="note">VPN gateway-lər hər iki buludda saatlıq ödənişlidir və data transferi ayrıca hesablanır. Yüksək trafikli bağlantılar üçün VPN əvəzinə xüsusi xətt (AWS Direct Connect + Azure ExpressRoute) daha stabil və uzun perspektivdə daha sərfəli ola bilər.</div>
+  </div>
+
+  <p class="section-title">6 · Best practice-lər</p>
+  <div class="card">
+    <h2>a · Ardıcıl tag siyasəti</h2>
+    <p>Bütün provider-lərdə resurslar eyni məntiqlə tag-lanmalıdır. Bu, xərc təhlili, monitorinq və uyğunluq yoxlamalarını mümkün edir — əks halda hansı resursun hansı layihəyə aid olduğunu heç bir hesabatda görə bilməzsən.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"web_server"</span> {
+  tags = {
+    Environment = <span class="s">"production"</span>
+    Project     = <span class="s">"multi-cloud"</span>
+  }
+}
+
+<span class="k">resource</span> <span class="s">"azurerm_linux_virtual_machine"</span> <span class="s">"my_vm"</span> {
+  tags = {
+    Environment = <span class="s">"production"</span>
+    Project     = <span class="s">"multi-cloud"</span>
+  }
+}</code></pre>
+    <div class="tip">Tag dəyərlərini <code>locals</code> blokunda bir yerdə saxla və hər resursda <code>merge(local.common_tags, { ... })</code> ilə birləşdir. Belədə tag siyasəti dəyişəndə on beş yerdə deyil, bir yerdə düzəliş edirsən.</div>
+
+    <h2>b · Modul strukturu</h2>
+    <p>Böyük multi-cloud mühitlərdə kodu modullara böl. Hər bulud üçün ayrı modul (məsələn, <code>modules/aws-network</code>, <code>modules/azure-network</code>) təkrarçılığı azaldır və konfiqurasiyanı oxunaqlı saxlayır. Ortaq interfeys — eyni adlı dəyişən və output-lar — modulların bir-birini əvəz edə bilməsini asanlaşdırır.</p>
+    <div class="ai">AI köməkçisi ilə işləyəndə diqqətli ol: Copilot AWS sintaksisini Azure resursuna, Azure sintaksisini isə AWS resursuna qarışdırmağa meyillidir (məsələn, <code>azurerm</code> resursunda <code>tags</code> əvəzinə AWS üslubunda blok təklif etmək). Hər təklifi <code>terraform validate</code> və provider sənədləri ilə yoxla.</div>
+  </div>
+
+  <p class="section-title">7 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>Multi-cloud-un texniki açarı provider alias-larıdır: eyni konfiqurasiyada bir neçə bulud və region nüsxəsi paralel idarə olunur.</li>
+      <li>Alias təyin edilmiş provider standart olmaqdan çıxır — hər resursda <code>provider = &lt;ad&gt;.&lt;alias&gt;</code> göstərilməlidir.</li>
+      <li>Bir konfiqurasiyada yalnız bir backend ola bilər; praktikada hər bulud üçün ayrı state saxlayıb aralarında <code>terraform_remote_state</code> ilə əlaqə qurmaq daha təhlükəsizdir.</li>
+      <li>Kredensiallar kodda deyil, mühit dəyişənlərində və ya secret saxlama sistemində olmalıdır; CI/CD-də isə OIDC ilə qısamüddətli açarlara keç.</li>
+      <li>Şəbəkəni əvvəlcədən planlaşdır: üst-üstə düşən CIDR diapazonları buludlar arası bağlantını tamamilə mümkünsüz edir.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="16-cost.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Xərc İdarəetməsi</div></a>
+    <a href="18-kubernetes.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Kubernetes və EKS</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

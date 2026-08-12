@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xərc İdarəetməsi · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 16</div>
+  <h1>Xərc İdarəetməsi</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Bulud infrastrukturunda ən çox təkrarlanan səhv budur: resurs yaradılır, işini görür, sonra unudulur — amma hesab hər ay gəlməyə davam edir. Bu fəsildə Terraform ilə xərci necə görünən, ölçülən və idarə olunan hala gətirməyi öyrənəcəyik: right-sizing, Reserved Instances, avtomatik söndürmə, budget alert-ləri, S3 lifecycle policy və autoscaling.</div>
+
+  <p class="section-title">1 · Niyə xərc idarəetməsi kritikdir</p>
+  <div class="card">
+    <h2>Buludda xərc bir dəfəlik qərar deyil, davamlı proses</h2>
+    <p>Ənənəvi data mərkəzində serveri bir dəfə alırsan və beş il işlədirsən. Buludda isə hər saat pul yanır. Ona görə xərc idarəetməsi infrastrukturun ayrılmaz hissəsi olmalıdır:</p>
+    <ul>
+      <li><strong>Büdcə nəzarəti</strong> — gözlənilməz hesab artımının qarşısını alır.</li>
+      <li><strong>Resurs optimallaşdırması</strong> — resurslar iş yükünə uyğun ölçüdə və səmərəli istifadə olunur.</li>
+      <li><strong>Miqyaslanma çevikliyi</strong> — infrastruktur böyüyəndə xərc mütləq eyni sürətlə böyüməməlidir.</li>
+      <li><strong>FinOps</strong> — infrastruktur qərarlarını maliyyə hədəfləri ilə uzlaşdırır; həm performans, həm xərc birlikdə optimallaşdırılır.</li>
+    </ul>
+    <p>Xərc strategiyalarını Terraform iş axınına daxil edəndə optimallaşdırma kiminsə yadına düşəndə edilən əməliyyat olmaqdan çıxır, kodun bir hissəsinə çevrilir — yəni review olunur, versiyalanır və təkrarlanır.</p>
+
+    <h3>Əsas strategiyaların müqayisəsi</h3>
+    <table>
+      <tr><th>Strategiya</th><th>Nəyi həll edir</th><th>Təxmini qənaət</th><th>Harada işləyir</th></tr>
+      <tr><td>Right-sizing</td><td>Həddindən artıq böyük seçilmiş instance / disk</td><td>20–50%</td><td>Hər mühitdə</td></tr>
+      <tr><td>Reserved Instances / Savings Plans</td><td>Sabit, proqnozlaşdırıla bilən yük</td><td>40–75%</td><td>Prod, uzunmüddətli</td></tr>
+      <tr><td>Avtomatik söndürmə (scheduler)</td><td>Gecə və həftəsonu boş qalan resurslar</td><td>50–65%</td><td>Dev / test</td></tr>
+      <tr><td>Autoscaling</td><td>Dəyişkən, gözlənilməz yük</td><td>20–40%</td><td>Web / API səviyyəsi</td></tr>
+      <tr><td>Storage lifecycle policy</td><td>Nadir oxunan, uzun saxlanan data</td><td>60–80%</td><td>Log, backup, arxiv</td></tr>
+      <tr><td>Budget + alert</td><td>Xərcin gec görünməsi</td><td>Birbaşa qənaət yox — erkən xəbərdarlıq</td><td>Bütün account-lar</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">2 · Right-sizing — resursu iş yükünə uyğunlaşdırmaq</p>
+  <div class="card">
+    <h2>Ən sadə və ən çox unudulan optimallaşdırma</h2>
+    <p>Right-sizing resursun ölçüsünü faktiki istifadəyə uyğunlaşdırmaq deməkdir. Compute, yaddaş və disk üzrə həddindən artıq resurs ayırmaq (overprovisioning) heç bir fayda vermədən xərc yaradır. CPU-su ayda orta hesabla 4% yüklənən <code>t3.large</code> instance-ın yerinə <code>t3.micro</code> tam kifayət edə bilər.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"example"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t3.micro"</span>  <span class="c"># istifadə statistikasına görə kiçildildi</span>
+
+  tags = {
+    Name = <span class="s">"example-instance"</span>
+  }
+}</code></pre>
+    <p>Burada instance tipi <code>t3.large</code>-dan <code>t3.micro</code>-ya endirilib. Dəyişiklik bir sətirdir, amma aylıq hesabda fərq təxminən səkkiz dəfədir.</p>
+    <div class="tip">Right-sizing təxminlə edilmir. Əvvəlcə CloudWatch (və ya Azure Monitor) metrikalarına bax: son 14–30 günün CPU, yaddaş və şəbəkə istifadəsi. AWS Compute Optimizer və Trusted Advisor bu təhlili hazır şəkildə verir — Terraform-da isə sadəcə nəticəni tətbiq edirsən.</div>
+    <div class="warn">Instance tipini dəyişmək instance-ın restart olunmasına səbəb olur. Prod mühitdə bunu iş saatlarından kənarda və ya autoscaling group vasitəsilə tədricən (rolling) et. <code>instance_type</code> dəyişikliyi bəzi hallarda resursun tam yenidən yaradılmasına gətirib çıxarır — mütləq əvvəlcə <code>terraform plan</code> nəticəsini oxu.</div>
+    <p>Dəyişəni parametrləşdirmək mühitlər arasında fərqi idarə etməyi asanlaşdırır:</p>
+<pre><code><span class="k">variable</span> <span class="s">"instance_type"</span> {
+  <span class="k">type</span>        = string
+  <span class="k">default</span>     = <span class="s">"t3.micro"</span>
+  description = <span class="s">"Mühitə görə instance ölçüsü"</span>
+}
+
+<span class="c"># dev.tfvars   → instance_type = "t3.micro"</span>
+<span class="c"># prod.tfvars  → instance_type = "m6i.large"</span></code></pre>
+  </div>
+
+  <p class="section-title">3 · Reserved Instances və Savings Plans</p>
+  <div class="card">
+    <h2>Öhdəlik müqabilində endirim</h2>
+    <p>AWS, Azure və Google Cloud müəyyən müddət ərzində (adətən 1 və ya 3 il) müəyyən həcmdə compute istifadə etmək öhdəliyi qarşılığında ciddi endirim təklif edir. AWS-də bunlar <strong>Reserved Instances (RI)</strong> və <strong>Savings Plans</strong>, Azure-da <strong>Reservations</strong> adlanır. Endirim on-demand qiymətə nisbətən 75%-ə qədər ola bilər.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"example"</span> {
+  ami                = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type      = <span class="s">"t3.micro"</span>
+  instance_lifecycle = <span class="s">"reserved"</span>  <span class="c"># instance-ı reserved kimi işarələyir</span>
+}</code></pre>
+    <div class="warn">Bu nümunə anlayışı izah etmək üçündür — AWS provider-də <code>aws_instance</code> resursunun belə bir arqumenti yoxdur və RI instance-ın öz üzərində qeyd olunmur. Praktikada RI/Savings Plan ayrıca alınan <strong>maliyyə öhdəliyidir</strong>: uyğun instance-lar işə düşəndə endirim hesaba avtomatik tətbiq olunur. Terraform tərəfdə buna ən yaxın resurs <code>aws_ec2_capacity_reservation</code>-dır; Savings Plan isə Billing konsolu və ya API üzərindən alınır.</div>
+    <p>Praktik qayda: RI-ni yalnız yükü proqnozlaşdırıla bilən sistemlər üçün al. Bir ilə bağlandığın instance ailəsi altı ay sonra artıq lazım olmasa, endirim qənaətə yox, itkiyə çevrilir.</p>
+    <table>
+      <tr><th>Model</th><th>Nə vaxt</th><th>Çeviklik</th><th>Endirim</th></tr>
+      <tr><td>On-Demand</td><td>Qısamüddətli, sınaq yükləri</td><td>Tam</td><td>—</td></tr>
+      <tr><td>Savings Plan</td><td>Sabit ümumi compute xərci</td><td>Yüksək (instance ailəsi dəyişə bilər)</td><td>~30–70%</td></tr>
+      <tr><td>Reserved Instance</td><td>Konkret tip, sabit yük</td><td>Aşağı</td><td>~40–75%</td></tr>
+      <tr><td>Spot</td><td>Kəsilməyə dözümlü batch, CI runner</td><td>Orta (istənilən an geri alına bilər)</td><td>~70–90%</td></tr>
+    </table>
+    <div class="note">Dev mühitləri üçün Spot instance-lar çox vaxt RI-dən daha yaxşı seçimdir: öhdəlik yaratmır və EKS node group-larında <code>capacity_type = "SPOT"</code> ilə bir sətirlik dəyişiklikdir.</div>
+  </div>
+
+  <p class="section-title">4 · Boş resursların avtomatik söndürülməsi</p>
+  <div class="card">
+    <h2>Gecə işləməyən mühit üçün niyə pul verək?</h2>
+    <p>Dev və test mühitləri günün 24 saatı işləyir, amma komanda onlardan gündə 8–9 saat istifadə edir. Yəni vaxtın təxminən 65%-i boşa gedir. EventBridge (CloudWatch Events) və Lambda kombinasiyası ilə instance-ları axşam söndürüb səhər yandırmaq mümkündür — və bu qurğunun özü də Terraform ilə yazılır.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_cloudwatch_event_rule"</span> <span class="s">"shutdown_rule"</span> {
+  name                = <span class="s">"shutdown-instances"</span>
+  schedule_expression = <span class="s">"cron(0 18 * * ? *)"</span>  <span class="c"># hər gün 18:00-da</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_lambda_function"</span> <span class="s">"shutdown_ec2"</span> {
+  filename      = <span class="s">"lambda_shutdown.zip"</span>
+  function_name = <span class="s">"shutdownEC2Instances"</span>
+  handler       = <span class="s">"lambda_function.lambda_handler"</span>
+  runtime       = <span class="s">"python3.12"</span>
+  role          = aws_iam_role.lambda_exec.arn
+}
+
+<span class="k">resource</span> <span class="s">"aws_cloudwatch_event_target"</span> <span class="s">"shutdown_target"</span> {
+  rule      = aws_cloudwatch_event_rule.shutdown_rule.name
+  target_id = <span class="s">"EC2Shutdown"</span>
+  arn       = aws_lambda_function.shutdown_ec2.arn
+}</code></pre>
+    <p>Bu konfiqurasiyada Lambda funksiyası hər axşam saat 18:00-da işə düşür və müəyyən tag-a malik EC2 instance-ları dayandırır. Səhər üçün eyni məntiqlə ikinci bir rule (<code>cron(0 8 ? * MON-FRI *)</code>) əlavə edilir.</p>
+    <div class="tip">Lambda-nı bütün instance-lar üzərində deyil, tag üzərində işlət: yalnız <code>AutoShutdown = "true"</code> tag-ı olanları dayandır. Belədə yeni resurs əlavə edəndə kodu deyil, sadəcə tag-ı dəyişirsən — və səhvən prod verilənlər bazasını söndürmək riski aradan qalxır.</div>
+    <div class="note">Söndürülmüş EC2 instance üçün compute haqqı alınmır, amma qoşulmuş EBS disk və Elastic IP üçün ödəniş davam edir. Yəni real qənaət 100% deyil, təxminən 60–70%-dir.</div>
+  </div>
+
+  <p class="section-title">5 · Xərc monitorinqi və alert-lər</p>
+  <div class="card">
+    <h2>a · AWS Budgets ilə hədd təyin etmək</h2>
+    <p>Xərci ay sonunda hesabda görmək gecdir. AWS Budgets müəyyən hədd təyin etməyə və bu həddin faizi keçiləndə bildiriş almağa imkan verir. Terraform bu qurğunu da avtomatlaşdırır.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_budgets_budget"</span> <span class="s">"monthly_budget"</span> {
+  budget_type  = <span class="s">"COST"</span>
+  limit_amount = <span class="s">"500"</span>
+  limit_unit   = <span class="s">"USD"</span>
+  time_unit    = <span class="s">"MONTHLY"</span>
+
+  cost_filters = {
+    Service = <span class="s">"AmazonEC2"</span>
+  }
+
+  notification {
+    comparison_operator        = <span class="s">"GREATER_THAN"</span>
+    threshold                  = 80
+    threshold_type             = <span class="s">"PERCENTAGE"</span>
+    notification_type          = <span class="s">"ACTUAL"</span>
+    subscriber_email_addresses = [<span class="s">"admin@example.com"</span>]
+  }
+}</code></pre>
+    <p>Nümunədə:</p>
+    <ul>
+      <li>EC2 xidməti üçün aylıq $500 büdcəsi təyin olunur.</li>
+      <li>Büdcənin 80%-i istifadə olunanda e-poçta bildiriş gedir — yəni ay bitməmiş reaksiya vermək imkanı qalır.</li>
+    </ul>
+    <div class="tip"><code>notification_type</code> üçün iki dəyər var: <code>ACTUAL</code> artıq xərclənmiş məbləği, <code>FORECASTED</code> isə cari templə ay sonunda gözlənilən məbləği izləyir. Ən faydalı qurğu ikisini birlikdə işlətməkdir — forecast alert-i problemi bir neçə gün əvvəl xəbər verir.</div>
+
+    <h2>b · Azure Cost Management</h2>
+    <p>Azure tərəfdə eyni məntiq <code>azurerm_cost_management_budget</code> ilə qurulur: subscription və ya resource group səviyyəsində məbləğ təyin edilir, hədd keçiləndə bildiriş göndərilir.</p>
+<pre><code><span class="k">resource</span> <span class="s">"azurerm_cost_management_budget"</span> <span class="s">"example"</span> {
+  name              = <span class="s">"monthly-budget"</span>
+  scope             = azurerm_subscription.primary.id
+  amount            = 500
+  time_grain        = <span class="s">"Monthly"</span>
+  time_period_start = <span class="s">"2024-01-01"</span>
+  time_period_end   = <span class="s">"2024-12-31"</span>
+
+  notification {
+    threshold      = 0.8  <span class="c"># 80% həddi</span>
+    contact_emails = [<span class="s">"admin@example.com"</span>]
+  }
+}</code></pre>
+    <p>Burada 2024-cü il üçün $500 limitli büdcə qurulur və 80% həddə çatanda bildiriş göndərilir.</p>
+    <div class="warn">Büdcə alert-i xərci <strong>dayandırmır</strong> — sadəcə xəbər verir. Əgər avtomatik reaksiya lazımdırsa, bildirişi SNS topic-ə yönləndirib oradan Lambda işə salmaq lazımdır (məsələn: qeyri-prod resursları dayandırmaq). Alert-in getdiyi e-poçt ünvanı da mütləq komanda siyahısı olsun — bir nəfərin şəxsi poçtu məzuniyyətə çıxanda alert də çıxır.</div>
+  </div>
+
+  <p class="section-title">6 · S3 lifecycle policy ilə storage optimallaşdırması</p>
+  <div class="card">
+    <h2>Nadir oxunan datanı ucuz tier-ə köçür</h2>
+    <p>Uzunmüddətli saxlanan data — loglar, backup-lar, arxiv — çox vaxt yazıldıqdan bir neçə həftə sonra praktik olaraq heç vaxt oxunmur. Lifecycle policy bu datanı avtomatik olaraq daha ucuz storage sinfinə keçirir (S3 Glacier, Azure Blob Archive) və müəyyən müddətdən sonra silir.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_s3_bucket"</span> <span class="s">"my_bucket"</span> {
+  bucket = <span class="s">"my-data-bucket"</span>
+
+  lifecycle_rule {
+    enabled = <span class="k">true</span>
+
+    transition {
+      days          = 30
+      storage_class = <span class="s">"GLACIER"</span>  <span class="c"># 30 gündən sonra Glacier-ə köçür</span>
+    }
+
+    expiration {
+      days = 365  <span class="c"># 365 gündən sonra sil</span>
+    }
+  }
+}</code></pre>
+    <p>Nəticədə data 30 gün sonra ucuz arxiv qatına keçir, 365 gün sonra isə tamamilə silinir — beləcə heç kimin lazım bilmədiyi obyektlər illərlə pul yandırmır.</p>
+    <div class="warn">AWS provider-in 4-cü versiyasından etibarən bucket daxilindəki <code>lifecycle_rule</code> bloku köhnəlmiş sayılır. Yeni kodda ayrıca resurs işlədilir:
+<pre><code><span class="k">resource</span> <span class="s">"aws_s3_bucket_lifecycle_configuration"</span> <span class="s">"my_bucket"</span> {
+  bucket = aws_s3_bucket.my_bucket.id
+
+  rule {
+    id     = <span class="s">"archive-and-expire"</span>
+    status = <span class="s">"Enabled"</span>
+
+    transition {
+      days          = 30
+      storage_class = <span class="s">"GLACIER"</span>
+    }
+
+    expiration {
+      days = 365
+    }
+  }
+}</code></pre></div>
+    <table>
+      <tr><th>S3 storage sinfi</th><th>Uyğun ssenari</th><th>Bərpa müddəti</th><th>Nisbi qiymət</th></tr>
+      <tr><td>Standard</td><td>Aktiv oxunan data</td><td>Dərhal</td><td>1×</td></tr>
+      <tr><td>Standard-IA</td><td>Ayda bir-iki dəfə oxunan</td><td>Dərhal</td><td>~0.5×</td></tr>
+      <tr><td>Glacier Instant Retrieval</td><td>Arxiv, amma tez lazım ola bilər</td><td>Dərhal</td><td>~0.25×</td></tr>
+      <tr><td>Glacier Flexible Retrieval</td><td>Backup, audit arxivi</td><td>Dəqiqələr–saatlar</td><td>~0.1×</td></tr>
+      <tr><td>Glacier Deep Archive</td><td>Uyğunluq tələbi ilə 7–10 il saxlanan</td><td>12 saata qədər</td><td>~0.04×</td></tr>
+    </table>
+    <div class="note">Glacier-dən data <strong>çıxarmaq</strong> pulludur. Əgər arxivi ayda bir neçə dəfə oxumaq ehtimalı varsa, retrieval haqqı qənaəti üstələyə bilər. Qaydanı yazmadan əvvəl datanın oxunma tezliyinə bax.</div>
+  </div>
+
+  <p class="section-title">7 · Autoscaling ilə xərci tələbata bağlamaq</p>
+  <div class="card">
+    <h2>Yalnız istifadə etdiyin qədər ödə</h2>
+    <p>Autoscaling resurs sayını yükə görə avtomatik artırıb-azaldır. Pik saatlarda performans qorunur, gecə isə instance sayı minimuma düşür. Terraform autoscaling group-un konfiqurasiyasını tam avtomatlaşdırır.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_autoscaling_group"</span> <span class="s">"example"</span> {
+  desired_capacity = 1
+  max_size         = 5
+  min_size         = 1
+
+  launch_configuration = aws_launch_configuration.example.id
+
+  tag {
+    key                 = <span class="s">"Name"</span>
+    value               = <span class="s">"autoscaled-instance"</span>
+    propagate_at_launch = <span class="k">true</span>
+  }
+}
+
+<span class="k">resource</span> <span class="s">"aws_launch_configuration"</span> <span class="s">"example"</span> {
+  image_id        = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type   = <span class="s">"t3.micro"</span>
+  security_groups = [aws_security_group.instance.id]
+
+  <span class="k">lifecycle</span> {
+    create_before_destroy = <span class="k">true</span>
+  }
+}</code></pre>
+    <p>Burada iki mühüm detal var. Birincisi, autoscaling group instance sayını 1 ilə 5 arasında tələbata görə tənzimləyir. İkincisi, <code>create_before_destroy = true</code> lifecycle qaydası yeni launch konfiqurasiyasını köhnəni silmədən əvvəl yaradır — belədə dəyişiklik zamanı xidmət kəsilməsi olmur.</p>
+    <div class="warn"><code>aws_launch_configuration</code> AWS tərəfindən köhnəlmiş elan olunub və yeni account-larda dəstəklənmir. Yeni kodda <code>aws_launch_template</code> işlədin — o həm Spot qarışıq siyasətlərini, həm də daha yeni instance tiplərini dəstəkləyir.</div>
+    <div class="tip">Scale-in siyasəti scale-out qədər vacibdir. Çox komanda instance əlavə etməyi konfiqurasiya edir, azaltmağı isə unudur — nəticədə pikdən sonra qrup böyük qalır. <code>target_tracking</code> siyasəti (məsələn, orta CPU 50%) hər iki istiqaməti bir konfiqurasiya ilə idarə edir.</div>
+  </div>
+
+  <p class="section-title">8 · Best practice-lər</p>
+  <div class="card">
+    <h2>Xərc idarəetməsini vərdişə çevir</h2>
+    <ul>
+      <li><strong>Müntəzəm baxış.</strong> Terraform konfiqurasiyalarını dövri olaraq (məsələn, rüblük) nəzərdən keçir: resurslar hələ də düzgün ölçüdədirmi, RI və Savings Plan imkanları istifadə olunurmu, artıq lazım olmayan resurs qalıbmı.</li>
+      <li><strong>Alert-ləri avtomatlaşdır.</strong> Büdcə və hədd bildirişləri kod ilə qurulmalıdır ki, yeni account və ya mühit yaradılanda avtomatik gəlsin.</li>
+      <li><strong>Autoscaling tətbiq et.</strong> Statik instance sayı əvəzinə yükə bağlı miqyaslanma — həm performans, həm xərc üçün.</li>
+      <li><strong>Ardıcıl tag siyasəti.</strong> <code>Environment</code>, <code>Project</code>, <code>Owner</code>, <code>CostCenter</code> tag-ları olmadan hesabı bölmək mümkün deyil. Tag-ları <code>default_tags</code> ilə provider səviyyəsində tətbiq et.</li>
+      <li><strong>Xərci plan mərhələsində gör.</strong> <code>infracost</code> kimi alətlər <code>terraform plan</code> nəticəsinə baxıb aylıq xərc fərqini hesablayır və CI/CD-də merge request-ə şərh kimi yazır.</li>
+    </ul>
+<pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"eu-north-1"</span>
+
+  default_tags {
+    tags = {
+      Environment = <span class="s">"dev"</span>
+      Project     = <span class="s">"dpe-07"</span>
+      ManagedBy   = <span class="s">"terraform"</span>
+      CostCenter  = <span class="s">"platform"</span>
+    }
+  }
+}</code></pre>
+    <div class="ai">AI köməkçisindən istifadə: <code>terraform plan</code> nəticəsini və ya mövcud konfiqurasiyanı Copilot-a verib «bu konfiqurasiyada hansı resurslar lazımsız xərc yaradır?» sualını verə bilərsən. Model NAT Gateway sayı, boş Elastic IP, <code>gp2</code> əvəzinə <code>gp3</code> disk kimi tez-tez qaçırılan detalları yaxşı tapır. Amma qiymət rəqəmlərini modeldən deyil, provider-in rəsmi qiymət cədvəlindən yoxla.</div>
+  </div>
+
+  <p class="section-title">9 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>Xərc idarəetməsi ayrıca əməliyyat deyil — right-sizing, lifecycle policy və budget kod içində, review olunan hissə kimi yaşamalıdır.</li>
+      <li>Ən böyük qənaət adətən ən sadə yerlərdən gəlir: düzgün instance ölçüsü, gecə söndürülən dev mühit və köhnə datanın arxivə köçürülməsi.</li>
+      <li>Reserved Instance və Savings Plan yalnız proqnozlaşdırıla bilən yük üçün mənalıdır; dəyişkən yük üçün autoscaling və Spot daha uyğundur.</li>
+      <li>Budget alert xərci dayandırmır, sadəcə xəbərdarlıq edir — <code>ACTUAL</code> və <code>FORECASTED</code> alert-lərini birlikdə qur.</li>
+      <li>Tag olmadan xərc təhlili mümkün deyil: <code>default_tags</code> ilə hər resursa mühit, layihə və sahib məlumatı yaz.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="15-dr-ha-2.html"><div class="lbl">← Əvvəlki</div><div class="ttl">DR/HA — Praktik Nümunələr</div></a>
+    <a href="17-multicloud-2.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Multi-Cloud — Praktik Nümunələr</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

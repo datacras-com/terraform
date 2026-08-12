@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Serverless — Lambda və Azure Functions · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 19</div>
+  <h1>Serverless — Lambda və Azure Functions</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Serverless yanaşmada sən yalnız kodu yazırsan — serveri ayırmaq, ölçüləndirmək və yamaqlamaq cloud provider-in işidir. Bu fəsildə Terraform ilə AWS Lambda funksiyasını yaradıb API Gateway-ə bağlayacağıq, sonra eyni işi Azure Functions üçün edəcəyik. Sonda serverless infrastrukturunu böyük miqyasda necə səliqəli saxlamağın qaydalarına baxacağıq.</div>
+
+  <p class="section-title">1 · Serverless nədir</p>
+  <div class="card">
+    <h2>Server yoxdur demək deyil — sənin serverin yoxdur demək</h2>
+    <p>Serverless — cloud modelidir ki, orada resursların ayrılmasını provider dinamik idarə edir. Sən EC2 instance seçmirsən, autoscaling group qurmursan, OS yeniləmirsən. Sən sadəcə bir <strong>function</strong> yazırsan və onun hansı hadisədə işə düşəcəyini deyirsən.</p>
+    <ul>
+      <li><strong>Avtomatik ölçüləndirmə</strong> — bir sorğu gəlsə bir nüsxə, min sorğu gəlsə min nüsxə işə düşür. Sən heç nə etmirsən.</li>
+      <li><strong>Xərc səmərəliliyi</strong> — yalnız kodun işlədiyi millisaniyələrə görə ödəyirsən. Boş dayanan server üçün pul getmir.</li>
+      <li><strong>Az əməliyyat yükü</strong> — provisioning, scaling və patching provider-in üzərindədir; komandan tətbiq məntiqinə fokuslanır.</li>
+    </ul>
+    <h3>Əsas platformalar</h3>
+    <ul>
+      <li><strong>AWS Lambda</strong></li>
+      <li><strong>Azure Functions</strong></li>
+      <li><strong>Google Cloud Functions</strong></li>
+    </ul>
+    <div class="note">Serverless hər iş üçün deyil. Uzun sürən (dəqiqələrlə) hesablamalar, davamlı açıq bağlantı tələb edən servislər və çox aşağı gecikmə istəyən yüklər üçün konteyner və ya VM daha uyğun ola bilər. Serverless-in güclü yeri — <em>hadisəyə cavab verən, qısa ömürlü</em> işlərdir.</div>
+  </div>
+
+  <p class="section-title">2 · Serverless memarlığın anlayışları</p>
+  <div class="card">
+    <h2>a. Functions as a Service (FaaS)</h2>
+    <p>Lambda, Azure Functions və Cloud Functions kimi platformalar sənə ayrı-ayrı funksiyaları deploy etməyə imkan verir. Hər function bir <strong>trigger</strong>-ə cavab olaraq icra olunur. Bu modelə <strong>Functions as a Service (FaaS)</strong> deyilir.</p>
+    <h2>b. Hadisə yönümlü (event-driven) memarlıq</h2>
+    <p>Serverless function-lar adətən bu hadisələrlə işə düşür:</p>
+    <table>
+      <tr><th>Trigger tipi</th><th>AWS nümunəsi</th><th>Azure nümunəsi</th><th>Tipik istifadə</th></tr>
+      <tr><td>HTTP sorğusu</td><td>API Gateway</td><td>HTTP trigger</td><td>REST API, webhook</td></tr>
+      <tr><td>Baza dəyişikliyi</td><td>DynamoDB Streams</td><td>Cosmos DB trigger</td><td>Sətir dəyişəndə indeks yeniləmək</td></tr>
+      <tr><td>Fayl yüklənməsi</td><td>Amazon S3 event</td><td>Blob trigger</td><td>Şəkil kiçiltmək, CSV emalı</td></tr>
+      <tr><td>Cədvəl üzrə (schedule)</td><td>CloudWatch Events / EventBridge</td><td>Timer trigger</td><td>Gecə hesabatı, təmizləmə işi</td></tr>
+      <tr><td>Növbə (queue)</td><td>SQS, SNS</td><td>Service Bus, Storage Queue</td><td>Asinxron emal</td></tr>
+    </table>
+    <div class="tip">Data platformasında ən çox rast gəlinən nümunə: S3-ə fayl düşür → Lambda işə düşür → faylı validasiya edib Glue/Redshift-ə ötürür. Bu zəncirin hər halqasını Terraform ilə kod kimi saxlamaq olar.</div>
+  </div>
+
+  <p class="section-title">3 · Terraform ilə AWS Lambda deploy etmək</p>
+  <div class="card">
+    <h2>Addım 1 — AWS provider</h2>
+    <p>Əvvəlcə provider-i və region-u təyin edirik. Function bu region-da yaradılacaq.</p>
+<pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-west-2"</span>
+}</code></pre>
+
+    <h2>Addım 2 — Lambda function</h2>
+    <p>Lambda kodunu ZIP arxivinə yığıb ötürürük. <code>handler</code> — kodun giriş nöqtəsi, yəni <code>fayl_adı.funksiya_adı</code>.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_lambda_function"</span> <span class="s">"my_lambda"</span> {
+  function_name = <span class="s">"my-lambda-function"</span>
+  handler       = <span class="s">"lambda_function.lambda_handler"</span>
+  runtime       = <span class="s">"python3.8"</span>
+  role          = aws_iam_role.lambda_role.arn
+
+  <span class="c"># Lambda kodunu saxlayan zip fayl</span>
+  filename         = <span class="s">"lambda_function.zip"</span>
+  <span class="c"># Zip dəyişəndə Terraform function-u yenidən deploy etsin</span>
+  source_code_hash = filebase64sha256(<span class="s">"lambda_function.zip"</span>)
+}</code></pre>
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li>Function Python 3.8 ilə yazılıb və <code>lambda_function.zip</code> arxivinə yığılıb.</li>
+      <li><code>handler</code> giriş nöqtəsini göstərir — <code>lambda_function</code> faylındakı <code>lambda_handler</code> funksiyası.</li>
+      <li><code>role</code> — function-un icra üçün lazım olan icazələrini verən IAM role.</li>
+      <li><code>source_code_hash</code> olmasa, sən zip-i dəyişsən də Terraform «dəyişiklik yoxdur» deyəcək. Bu sətri unutma.</li>
+    </ul>
+    <div class="warn">Runtime versiyaları köhnəlir. <code>python3.8</code> nümunə üçün yazılıb; canlı işdə AWS-in hazırda dəstəklədiyi versiyanı seç, çünki dəstəkdən çıxan runtime-da function-u yeniləmək mümkün olmur.</div>
+
+    <h2>Addım 3 — Lambda üçün IAM role</h2>
+    <p>Function-un öz kimliyi olmalıdır. <code>assume_role_policy</code> bu role-u kimin götürə biləcəyini deyir — burada Lambda servisi.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_iam_role"</span> <span class="s">"lambda_role"</span> {
+  name = <span class="s">"lambda-execution-role"</span>
+
+  assume_role_policy = &lt;&lt;EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": "sts:AssumeRole",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      }
+    }
+  ]
+}
+EOF
+}</code></pre>
+    <p>İndi role-a icazə əlavə edirik — function loqlarını CloudWatch Logs-a yaza bilsin:</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_iam_role_policy"</span> <span class="s">"lambda_policy"</span> {
+  role = aws_iam_role.lambda_role.id
+
+  policy = &lt;&lt;EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "logs:CreateLogGroup",
+      "Resource": "arn:aws:logs:*:*:*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "logs:CreateLogStream",
+      "Resource": "arn:aws:logs:*:*:*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "logs:PutLogEvents",
+      "Resource": "arn:aws:logs:*:*:*"
+    }
+  ]
+}
+EOF
+}</code></pre>
+    <div class="note">Bu üç icazə — <code>CreateLogGroup</code>, <code>CreateLogStream</code>, <code>PutLogEvents</code> — Lambda-nın minimum dəsti sayılır. Onlarsız function işləyər, amma loq görməzsən və xətanı tapmaq mümkün olmaz. Function başqa servisə (S3, DynamoDB) müraciət edirsə, o icazələri də ayrıca əlavə et.</div>
+  </div>
+
+  <p class="section-title">4 · Lambda-nı API Gateway ilə birləşdirmək</p>
+  <div class="card">
+    <h2>Function-u HTTP üzərindən əlçatan etmək</h2>
+    <p>Lambda özü URL ilə açıq deyil. Ona HTTP qapısı lazımdır — API Gateway. Ardıcıllıq belədir: REST API → resource (yol) → method (HTTP fel) → invoke icazəsi.</p>
+<pre><code><span class="c"># 1) REST API özü</span>
+<span class="k">resource</span> <span class="s">"aws_api_gateway_rest_api"</span> <span class="s">"my_api"</span> {
+  name        = <span class="s">"My API"</span>
+  description = <span class="s">"Lambda function üçün API Gateway"</span>
+}
+
+<span class="c"># 2) Yol: /lambda</span>
+<span class="k">resource</span> <span class="s">"aws_api_gateway_resource"</span> <span class="s">"lambda_resource"</span> {
+  rest_api_id = aws_api_gateway_rest_api.my_api.id
+  parent_id   = aws_api_gateway_rest_api.my_api.root_resource_id
+  path_part   = <span class="s">"lambda"</span>
+}
+
+<span class="c"># 3) Bu yolda GET metodu</span>
+<span class="k">resource</span> <span class="s">"aws_api_gateway_method"</span> <span class="s">"get_lambda"</span> {
+  rest_api_id   = aws_api_gateway_rest_api.my_api.id
+  resource_id   = aws_api_gateway_resource.lambda_resource.id
+  http_method   = <span class="s">"GET"</span>
+  authorization = <span class="s">"NONE"</span>
+}
+
+<span class="c"># 4) API Gateway-ə function-u çağırmaq icazəsi</span>
+<span class="k">resource</span> <span class="s">"aws_lambda_permission"</span> <span class="s">"api_gateway_invoke"</span> {
+  statement_id  = <span class="s">"AllowAPIGatewayInvoke"</span>
+  action        = <span class="s">"lambda:InvokeFunction"</span>
+  function_name = aws_lambda_function.my_lambda.arn
+  principal     = <span class="s">"apigateway.amazonaws.com"</span>
+}</code></pre>
+    <p>Bu konfiqurasiyada:</p>
+    <ul>
+      <li>API Gateway-də GET metodu qurulub və o, Lambda function-u işə salır.</li>
+      <li><code>aws_lambda_permission</code> resource-u olmadan API Gateway function-u çağıra bilməz — <code>403</code> alarsan. Bu, ən çox unudulan hissədir.</li>
+    </ul>
+    <div class="warn"><code>authorization = "NONE"</code> API-ni internetə tam açıq qoyur. Öyrənmək üçün olar, amma prod-da mütləq IAM, Cognito authorizer və ya API key qoy.</div>
+
+    <h2>Konfiqurasiyanı tətbiq etmək</h2>
+<pre><code>terraform init
+terraform plan
+terraform apply</code></pre>
+    <p>Nəticədə Lambda function yaranacaq, IAM role-u qoşulacaq və function API Gateway üzərindən əlçatan olacaq.</p>
+  </div>
+
+  <p class="section-title">5 · Terraform ilə Azure Functions deploy etmək</p>
+  <div class="card">
+    <h2>Addım 1 — Azure provider</h2>
+<pre><code><span class="k">provider</span> <span class="s">"azurerm"</span> {
+  features {}
+}</code></pre>
+    <div class="note"><code>features {}</code> boş olsa da mütləqdir — <code>azurerm</code> provider-i onsuz işə düşmür.</div>
+
+    <h2>Addım 2 — Function App və onun asılılıqları</h2>
+    <p>Azure-da function tək başına yaşamır. Ona resource group, storage account və app service plan lazımdır.</p>
+<pre><code><span class="c"># Bütün resursların yerləşdiyi qrup</span>
+<span class="k">resource</span> <span class="s">"azurerm_resource_group"</span> <span class="s">"example_rg"</span> {
+  name     = <span class="s">"example-resources"</span>
+  location = <span class="s">"West US"</span>
+}
+
+<span class="c"># Function kodunu və vəziyyətini saxlayan storage</span>
+<span class="k">resource</span> <span class="s">"azurerm_storage_account"</span> <span class="s">"example_storage"</span> {
+  name                     = <span class="s">"examplestorageacct"</span>
+  resource_group_name      = azurerm_resource_group.example_rg.name
+  location                 = azurerm_resource_group.example_rg.location
+  account_tier             = <span class="s">"Standard"</span>
+  account_replication_type = <span class="s">"LRS"</span>
+}
+
+<span class="c"># Dynamic (Y1) plan = istifadəyə görə ödəniş, serverless rejim</span>
+<span class="k">resource</span> <span class="s">"azurerm_app_service_plan"</span> <span class="s">"example_plan"</span> {
+  name                = <span class="s">"example-appserviceplan"</span>
+  location            = azurerm_resource_group.example_rg.location
+  resource_group_name = azurerm_resource_group.example_rg.name
+  kind                = <span class="s">"FunctionApp"</span>
+
+  sku {
+    tier = <span class="s">"Dynamic"</span>
+    size = <span class="s">"Y1"</span>
+  }
+}
+
+<span class="c"># Function App-ın özü</span>
+<span class="k">resource</span> <span class="s">"azurerm_function_app"</span> <span class="s">"example_function"</span> {
+  name                       = <span class="s">"examplefunction"</span>
+  location                   = azurerm_resource_group.example_rg.location
+  resource_group_name        = azurerm_resource_group.example_rg.name
+  app_service_plan_id        = azurerm_app_service_plan.example_plan.id
+  storage_account_name       = azurerm_storage_account.example_storage.name
+  storage_account_access_key = azurerm_storage_account.example_storage.primary_access_key
+  os_type                    = <span class="s">"Linux"</span>
+  version                    = <span class="s">"~3"</span>
+}</code></pre>
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li>Function App bir resource group, storage account və app service plan içində yaradılır.</li>
+      <li>Plan <code>Dynamic</code>/<code>Y1</code> seçilib — bu, Azure-un «consumption» yəni serverless rejimidir: istifadə olunmayanda pul getmir.</li>
+      <li>Function App Linux üzərində işləyir və Azure Functions runtime-ın 3.x versiyasını istifadə edir.</li>
+    </ul>
+    <div class="warn"><code>storage_account_access_key</code> state faylına açıq şəkildə düşür. Bu, remote state-i şifrələmək və girişi məhdudlaşdırmaq üçün ayrıca bir səbəbdir — 4-cü fəsildəki backend qaydalarını xatırla.</div>
+
+    <h2>Deploy</h2>
+<pre><code>terraform init
+terraform plan
+terraform apply</code></pre>
+  </div>
+
+  <p class="section-title">6 · AWS və Azure yanaşmalarının müqayisəsi</p>
+  <div class="card">
+    <table>
+      <tr><th>Məsələ</th><th>AWS Lambda</th><th>Azure Functions</th></tr>
+      <tr><td>Əsas resource</td><td><code>aws_lambda_function</code></td><td><code>azurerm_function_app</code></td></tr>
+      <tr><td>Kod necə verilir</td><td>ZIP fayl və ya S3 obyekti, konteyner image</td><td>Storage account üzərindən, deployment paketi</td></tr>
+      <tr><td>Serverless ödəniş modeli</td><td>Standart (per-invocation)</td><td>Dynamic / Y1 planı seçilməlidir</td></tr>
+      <tr><td>HTTP qapısı</td><td>Ayrıca API Gateway resource-ları</td><td>HTTP trigger Function App-a daxildir</td></tr>
+      <tr><td>İcazələr</td><td>IAM role + <code>aws_lambda_permission</code></td><td>Managed identity, RBAC</td></tr>
+      <tr><td>Loqlar</td><td>CloudWatch Logs</td><td>Application Insights / Log Analytics</td></tr>
+      <tr><td>Sirlər</td><td>AWS Secrets Manager, SSM Parameter Store</td><td>Azure Key Vault</td></tr>
+    </table>
+    <div class="tip">Fərqlərə baxmayaraq iş axını eynidir: kimlik → kod → trigger → loq. İki cloud üçün modul yazanda bu dörd hissəni eyni interfeyslə (dəyişən adları ilə) gizlətmək kodunu oxunaqlı saxlayır.</div>
+  </div>
+
+  <p class="section-title">7 · Serverless infrastrukturu idarə etmək qaydaları</p>
+  <div class="card">
+    <h2>a. Function-lar üçün modul yaz</h2>
+    <p>Bir-iki function-la problem yoxdur. Amma otuz function və üç mühit (dev, staging, prod) olanda kod təkrarı idarəolunmaz olur. Terraform modulu yaz: function adı, handler, runtime, environment dəyişənləri parametr olsun, IAM role və log group modulun içində yaransın.</p>
+<pre><code><span class="k">module</span> <span class="s">"ingest_function"</span> {
+  source        = <span class="s">"./modules/lambda"</span>
+  function_name = <span class="s">"ingest-events"</span>
+  handler       = <span class="s">"app.handler"</span>
+  runtime       = <span class="s">"python3.12"</span>
+  environment   = var.environment
+}</code></pre>
+
+    <h2>b. Sirləri təhlükəsiz saxla</h2>
+    <p>API açarları, baza parolları kimi həssas məlumatı heç vaxt Terraform koduna və ya environment variable-a açıq yazma. Cloud-un öz sirr idarəetmə vasitələrindən istifadə et — AWS Secrets Manager və ya Azure Key Vault. Function işə düşəndə sirri oradan oxusun; Terraform yalnız sirrin <em>adını</em> (ARN-i) bilsin.</p>
+    <div class="warn">Terraform koduna yazılan sirr iki yerdə qalır: git tarixçəsində və state faylında. İkisi də silinməsi çətin izdir. Kod yazılan anda düzgün etmək daha ucuzdur.</div>
+
+    <h2>c. Loq saxlanma müddətini özün təyin et</h2>
+    <p>AWS Lambda özü avtomatik log group yaradır və onun saxlanma müddəti <em>sonsuzdur</em> — yəni loq üçün əbədi ödəyirsən. Log group-u Terraform ilə əvvəlcədən yarat və <code>retention_in_days</code> qoy. Bunu növbəti fəsildə ətraflı görəcəyik.</p>
+
+    <h2>d. Versiya və alias istifadə et</h2>
+    <p>Function-un yeni versiyasını dərhal bütün trafikə vermək əvəzinə alias ilə mərhələli keçid et. Beləliklə problem çıxsa, geri qayıtmaq bir konfiqurasiya dəyişikliyi qədər asan olur.</p>
+  </div>
+
+  <p class="section-title">8 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li><strong>Serverless = kod + trigger + kimlik.</strong> Terraform-da hər function üçün bu üç hissəni birlikdə təsvir et; biri əskik olsa, function ya işə düşmür, ya da səssizcə xəta verir.</li>
+      <li><strong><code>source_code_hash</code> olmadan deploy işləmir</strong> — zip dəyişsə də Terraform fərqi görməz və köhnə kod işləməyə davam edər.</li>
+      <li><strong>API Gateway → Lambda üçün <code>aws_lambda_permission</code> məcburidir.</strong> Ən çox rast gəlinən «403 Forbidden» səbəbi budur.</li>
+      <li><strong>Azure-da serverless rejim plan seçimi ilə gəlir</strong> — <code>Dynamic</code>/<code>Y1</code> olmasa, boş dayanan Function App üçün də ödəyirsən.</li>
+      <li><strong>Sirlər Secrets Manager və ya Key Vault-da, kodda yox.</strong> Modul quruluşu isə function sayı artdıqca səni xilas edən yeganə şeydir.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="18-kubernetes.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Kubernetes və EKS</div></a>
+    <a href="20-monitoring.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Monitorinq və Loqlama</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

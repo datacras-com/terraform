@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Provider-lər və Resurslar · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 2</div>
+  <h1>Provider-lər və Resurslar</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Provider Terraform-u xarici dünyaya bağlayan körpüdür, resource isə Terraform-un idarə etdiyi ən kiçik tikinti bloku. Bu fəsildə provider-lərin necə konfiqurasiya olunduğunu, versiyalandığını və alias-larla necə çoxaldıldığını, resource bloklarının quruluşunu, atributları, asılılıqları, <code>lifecycle</code> qaydalarını və provisioner-ləri öyrənəcəksən.</div>
+
+  <p class="section-title">1 · Provider anlayışı</p>
+  <div class="card">
+    <h2>Provider nədir</h2>
+    <p>Terraform-da <strong>provider</strong> resursların həyat dövrünü idarə etməyə cavabdehdir. Terraform provider-lər vasitəsilə müxtəlif API-larla və bulud platformaları ilə — AWS, Azure, Google Cloud və bir çox başqası ilə — əlaqə qurur. Provider-lər Terraform ilə onun idarə etdiyi infrastruktur arasında körpü rolunu oynayır.</p>
+    <p>Texniki baxımdan provider-lər Terraform-un xarici sistemlərlə danışmasına imkan verən plugin-lərdir. Bu sistemlər bulud platformaları (AWS, Azure, Google Cloud), SaaS platformaları (GitHub, PagerDuty) və ya infrastruktur xidmətləri (Kubernetes, OpenStack) ola bilər.</p>
+    <p>Provider-lər Terraform-un idarə edə biləcəyi resource və data source dəstini müəyyən edir. Məsələn, AWS provider-i EC2 instance, S3 bucket, RDS verilənlər bazası kimi AWS resurslarını idarə etməyə imkan verir.</p>
+
+    <table>
+      <tr><th>Provider</th><th>Təqdim etdiyi resurslardan bəziləri</th></tr>
+      <tr><td>AWS</td><td><code>aws_instance</code>, <code>aws_s3_bucket</code>, <code>aws_vpc</code></td></tr>
+      <tr><td>Azure</td><td><code>azurerm_virtual_machine</code>, <code>azurerm_storage_account</code>, <code>azurerm_app_service</code></td></tr>
+      <tr><td>Google Cloud</td><td><code>google_compute_instance</code>, <code>google_storage_bucket</code></td></tr>
+    </table>
+
+    <p>Resurs yaratmazdan əvvəl provider mütləq konfiqurasiya olunmalıdır. Provider konfiqurasiyası adətən autentifikasiya məlumatlarını (giriş açarları və ya token-lər) və region parametrlərini əhatə edir.</p>
+  </div>
+
+  <p class="section-title">2 · Provider-in konfiqurasiyası</p>
+  <div class="card">
+    <h2>provider bloku</h2>
+    <p>Provider-i konfiqurasiya etmək üçün konfiqurasiyada <code>provider</code> bloku yazılır. AWS ilə işləyirsənsə, belə görünür:</p>
+<pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  region     = <span class="s">"us-west-1"</span>
+  access_key = <span class="s">"your-access-key"</span>
+  secret_key = <span class="s">"your-secret-key"</span>
+}</code></pre>
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li><code>region</code> — Terraform-un resursları yaradacağı AWS regionunu göstərir (məsələn <code>us-west-1</code>).</li>
+      <li><code>access_key</code> və <code>secret_key</code> — Terraform-un API sorğularını autentifikasiya etmək üçün işlətdiyi AWS credential-larıdır. Onları ya birbaşa koda yaza bilərsən (təhlükəsizlik baxımından təklif olunmur), ya da <code>AWS_ACCESS_KEY_ID</code> və <code>AWS_SECRET_ACCESS_KEY</code> mühit dəyişənlərindən istifadə edə bilərsən.</li>
+    </ul>
+    <div class="warn"><strong>Xəbərdarlıq.</strong> Credential-ları konfiqurasiya faylına yazma. Kod Git-ə düşən an açarlar açıq şəkildə tarixçəyə yazılır və sonradan tam təmizləmək çətindir. Mühit dəyişəni, AWS profil faylı və ya (EC2/EKS üzərində işləyirsənsə) IAM rolu ən düzgün yoldur.</div>
+  </div>
+
+  <p class="section-title">3 · Bir neçə provider-in idarəsi</p>
+  <div class="card">
+    <h2>Eyni konfiqurasiyada müxtəlif buludlar</h2>
+    <p>Terraform eyni konfiqurasiya daxilində bir neçə provider üzərindən infrastruktur idarə etməyi dəstəkləyir. Məsələn, bir layihədə həm AWS, həm də Google Cloud resurslarını idarə edə bilərsən.</p>
+<pre><code><span class="c"># AWS provider</span>
+<span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-west-1"</span>
+}
+
+<span class="c"># Google Cloud provider</span>
+<span class="k">provider</span> <span class="s">"google"</span> {
+  project = <span class="s">"my-gcp-project"</span>
+  region  = <span class="s">"us-central1"</span>
+}
+
+<span class="c"># AWS-də EC2 instance</span>
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_aws_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+}
+
+<span class="c"># Google Cloud-da storage bucket</span>
+<span class="k">resource</span> <span class="s">"google_storage_bucket"</span> <span class="s">"my_bucket"</span> {
+  name     = <span class="s">"my-storage-bucket"</span>
+  location = <span class="s">"US"</span>
+}</code></pre>
+    <p>Burada AWS provider-i EC2 instance yaratmaq üçün, Google Cloud provider-i isə storage bucket yaratmaq üçün işlədilir. Terraform hər resursun adının önündəki prefiksə (<code>aws_</code>, <code>google_</code>) baxaraq hansı provider-in cavabdeh olduğunu özü müəyyən edir.</p>
+  </div>
+
+  <p class="section-title">4 · Provider versiyalandırması</p>
+  <div class="card">
+    <h2>Versiyanı sabitləmək niyə vacibdir</h2>
+    <p>Terraform işlədəcəyin provider versiyasını təyin etməyə imkan verir. Bu vacibdir, çünki bütün mühitlərdə eyni provider versiyasının işlədilməsi provider yeniləmələrindən doğan uyğunsuzluqların (breaking change) qarşısını alır.</p>
+<pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  version = <span class="s">"~> 2.0"</span> <span class="c"># provider-in 2.x seriyasını işlət</span>
+  region  = <span class="s">"us-west-1"</span>
+}</code></pre>
+    <p><code>version</code> arqumenti Terraform-un AWS provider-inin 2.x versiyasını işlətməsini təmin edir. Dəqiq versiyanı sabitləmək (pin) və ya versiya aralığı göstərmək də mümkündür.</p>
+    <table>
+      <tr><th>Yazılış</th><th>Mənası</th></tr>
+      <tr><td><code>= 2.70.0</code></td><td>Yalnız bu dəqiq versiya</td></tr>
+      <tr><td><code>~&gt; 2.0</code></td><td>2.x seriyası daxilində ən yeni versiya (3.0-a keçmir)</td></tr>
+      <tr><td><code>&gt;= 2.0, &lt; 3.0</code></td><td>Aralıq şəklində göstərilmiş məhdudiyyət</td></tr>
+    </table>
+    <div class="note"><strong>Qeyd.</strong> Müasir Terraform versiyalarında provider versiyası <code>terraform { required_providers { ... } }</code> bloku daxilində göstərilir; <code>provider</code> blokundakı <code>version</code> arqumenti köhnə üsuldur. Məntiq isə eynidir: versiyanı sərbəst buraxma, sabitlə.</div>
+  </div>
+
+  <p class="section-title">5 · Provider alias-ları</p>
+  <div class="card">
+    <h2>Eyni provider-in bir neçə nüsxəsi</h2>
+    <p>Eyni provider daxilində bir neçə hesab və ya region ilə işləmək lazım gələrsə, provider <strong>alias</strong>-larından istifadə edirsən. Məsələn, resursları bir neçə AWS regionunda idarə etmək istəyə bilərsən.</p>
+<pre><code><span class="c"># Standart AWS provider (us-west-1)</span>
+<span class="k">provider</span> <span class="s">"aws"</span> {
+  region = <span class="s">"us-west-1"</span>
+}
+
+<span class="c"># Əlavə AWS provider (us-east-1) — alias ilə</span>
+<span class="k">provider</span> <span class="s">"aws"</span> {
+  alias  = <span class="s">"us_east"</span>
+  region = <span class="s">"us-east-1"</span>
+}
+
+<span class="c"># Standart regionda resurs (us-west-1)</span>
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"west_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+}
+
+<span class="c"># Əlavə regionda resurs (us-east-1)</span>
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"east_instance"</span> {
+  provider      = aws.us_east
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+}</code></pre>
+    <p>Bu nümunədə <code>alias = "us_east"</code> olan <code>provider</code> bloku <code>us-east-1</code> regionu üçün ikinci AWS provider-i qurur, standart provider isə <code>us-west-1</code> ilə işləyir. <code>east_instance</code> adlı EC2 instance <code>provider = aws.us_east</code> sətri sayəsində <code>us-east-1</code> regionunda yaradılır.</p>
+    <div class="tip"><strong>Məsləhət.</strong> Alias-lar çox-regionlu disaster recovery, ACM sertifikatlarının <code>us-east-1</code>-də yaradılması (CloudFront tələbi) və çox-hesablı (multi-account) quruluşlarda əvəzsizdir. Alias adını region və ya hesabın rolu ilə uyğunlaşdır: <code>us_east</code>, <code>prod_account</code>.</div>
+  </div>
+
+  <p class="section-title">6 · Resource anlayışı</p>
+  <div class="card">
+    <h2>Resource nədir</h2>
+    <p><strong>Resource</strong> Terraform-un təməl tikinti blokudur. O, Terraform-un idarə etdiyi infrastruktur komponentini təmsil edir. Resurslara nümunə: virtual maşınlar, verilənlər bazaları, storage bucket-lər, load balancer-lər.</p>
+    <p>Resurslar konfiqurasiya fayllarında <code>resource</code> blokları ilə təyin olunur. Hər <code>resource</code> bloku idarə olunacaq resursun tipini, onu idarə edəcək provider-i və həmin resursun konfiqurasiyasını göstərir.</p>
+
+    <h3>Blokun quruluşu</h3>
+<pre><code><span class="k">resource</span> <span class="s">"&lt;PROVIDER&gt;_&lt;RESOURCE_TYPE&gt;"</span> <span class="s">"&lt;RESOURCE_NAME&gt;"</span> {
+  &lt;KONFIQURASIYA&gt;
+}</code></pre>
+    <ul>
+      <li><strong>&lt;PROVIDER&gt;</strong> — resursu idarə edən bulud provayderi (<code>aws</code>, <code>azurerm</code>, <code>google</code>).</li>
+      <li><strong>&lt;RESOURCE_TYPE&gt;</strong> — idarə olunan resursun tipi (<code>instance</code>, <code>bucket</code>, <code>vpc</code>).</li>
+      <li><strong>&lt;RESOURCE_NAME&gt;</strong> — resursun Terraform daxilindəki adı; bunu sən özün seçirsən.</li>
+      <li><strong>&lt;KONFIQURASIYA&gt;</strong> — resursun necə qurulacağını göstərən arqumentlər dəsti.</li>
+    </ul>
+
+    <h3>Nümunə: AWS EC2 instance</h3>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span> <span class="c"># Amazon Linux AMI</span>
+  instance_type = <span class="s">"t2.micro"</span>
+}</code></pre>
+    <ul>
+      <li>Resurs tipi <code>aws_instance</code>-dır — AWS-də EC2 instance idarə edir.</li>
+      <li>Resurs adı <code>my_instance</code>-dır — Terraform resursu öz daxili state-ində bu adla tanıyır.</li>
+      <li><code>ami</code> və <code>instance_type</code> EC2 instance-ı konfiqurasiya edən arqumentlərdir.</li>
+    </ul>
+    <div class="note"><strong>Qeyd.</strong> Resursun Terraform daxilindəki adı (<code>my_instance</code>) buludda görünən ad deyil — o, yalnız konfiqurasiya və state daxilində istinad üçündür. Bu adı sonradan dəyişsən, Terraform resursu silib yenidən yaratmaq istəyəcək.</div>
+  </div>
+
+  <p class="section-title">7 · Resurs atributları</p>
+  <div class="card">
+    <h2>Atributlara müraciət</h2>
+    <p>Terraform-da hər resurs bir sıra <strong>atribut</strong> təqdim edir. Bu atributlar həm resursu konfiqurasiya etmək, həm də ondan məlumat çıxarmaq üçün işlədilir.</p>
+    <p>Məsələn, EC2 instance aşağıdakı atributları təqdim edir:</p>
+    <table>
+      <tr><th>Atribut</th><th>Təyinatı</th></tr>
+      <tr><td><code>ami</code></td><td>İşlədiləcək Amazon Machine Image-i göstərir</td></tr>
+      <tr><td><code>instance_type</code></td><td>Instance-ın ölçüsünü müəyyən edir (məsələn <code>t2.micro</code>)</td></tr>
+      <tr><td><code>public_ip</code></td><td>Instance-a təyin olunmuş public IP ünvanı — yalnız oxunan (output-only) atribut</td></tr>
+    </table>
+    <p>Resurs atributlarına konfiqurasiyanın başqa yerlərindən müraciət edə bilərsən:</p>
+<pre><code><span class="k">output</span> <span class="s">"instance_ip"</span> {
+  value = aws_instance.my_instance.public_ip
+}</code></pre>
+    <div class="tip"><strong>Məsləhət.</strong> Yalnız oxunan atributlar (məsələn <code>public_ip</code>, <code>id</code>, <code>arn</code>) resurs yaradılana qədər məlum olmur. Elə buna görə <code>terraform plan</code> nəticəsində belə dəyərlər <code>(known after apply)</code> kimi görünür — bu, səhv deyil.</div>
+  </div>
+
+  <p class="section-title">8 · Asılılıqların idarəsi</p>
+  <div class="card">
+    <h2>Terraform ardıcıllığı özü müəyyən edir</h2>
+    <p>Terraform resurslar arasındakı asılılıqları avtomatik idarə edir. O, hansı resursun başqasından asılı olduğunu başa düşür və resursların düzgün ardıcıllıqla yaradılmasını təmin edir.</p>
+    <p>Məsələn, VPC-dən asılı olan EC2 instance yaradırsansa, Terraform əvvəlcə VPC-nin qurulmalı olduğunu biləcək.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_vpc"</span> <span class="s">"my_vpc"</span> {
+  cidr_block = <span class="s">"10.0.0.0/16"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+  subnet_id     = aws_vpc.my_vpc.id <span class="c"># EC2 instance VPC-dən asılıdır</span>
+}</code></pre>
+    <p>Bu nümunədə EC2 instance VPC uğurla qurulmayınca yaradılmayacaq. Asılılıq <code>aws_vpc.my_vpc.id</code> istinadı ilə <em>gizli</em> (implicit) şəkildə yaranır — əlavə heç nə yazmağa ehtiyac yoxdur.</p>
+    <div class="note"><strong>Qeyd.</strong> Asılılıq konfiqurasiyada birbaşa istinadla görünmürsə (məsələn IAM siyasətinin instance-dan əvvəl hazır olması tələbi), <code>depends_on</code> arqumenti ilə asılılığı açıq şəkildə göstərmək olar.</div>
+  </div>
+
+  <p class="section-title">9 · Resursun həyat dövrü — lifecycle</p>
+  <div class="card">
+    <h2>lifecycle bloku</h2>
+    <p>Terraform <code>lifecycle</code> bloku vasitəsilə resursların həyat dövrünü idarə etməyə imkan verir. Bu, Terraform-un resursun yaradılmasını, yenilənməsini və ya silinməsini necə həyata keçirdiyini fərdiləşdirmək üçün faydalıdır.</p>
+    <table>
+      <tr><th>Arqument</th><th>Nə edir</th></tr>
+      <tr><td><code>create_before_destroy</code></td><td>Köhnə resurs silinməzdən əvvəl yenisinin yaradılmasını təmin edir</td></tr>
+      <tr><td><code>prevent_destroy</code></td><td>Terraform-un resursu silməsinin qarşısını alır</td></tr>
+      <tr><td><code>ignore_changes</code></td><td>Resursun müəyyən atributlarındakı dəyişikliklərə məhəl qoymamağı bildirir</td></tr>
+    </table>
+    <p>Nümunə: köhnə EC2 instance silinməzdən əvvəl yenisinin yaradılması:</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  lifecycle {
+    create_before_destroy = <span class="k">true</span>
+  }
+}</code></pre>
+    <p>Bu halda Terraform köhnə instance-ı silməzdən əvvəl yenisini yaradacaq və beləliklə xidmətin dayanma müddəti minimuma enəcək.</p>
+    <div class="tip"><strong>Məsləhət.</strong> <code>prevent_destroy = true</code> verilənlər bazası və state saxlayan bucket kimi kritik resurslar üçün ucuz, lakin çox effektiv qorunma vasitəsidir. <code>ignore_changes</code> isə xarici sistemin (məsələn autoscaling və ya operator) dəyişdirdiyi sahələr üçün faydalıdır — Terraform hər <code>plan</code>-da həmin sahəni geri qaytarmağa çalışmaz.</div>
+  </div>
+
+  <p class="section-title">10 · Provisioner-lər</p>
+  <div class="card">
+    <h2>Resurs yarandıqdan sonra əmr işlətmək</h2>
+    <p>Provisioner-lər resurs yaradıldıqdan sonra onun üzərində skript və ya əmr icra etməyə imkan verir. Onlar resursların ilkin hazırlanması (bootstrap) və ya konfiqurasiya işləri üçün faydalıdır.</p>
+    <p>Nümunə: EC2 instance yaradıldıqdan sonra onun üzərində shell əmrləri işlətmək:</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  <span class="k">provisioner</span> <span class="s">"remote-exec"</span> {
+    inline = [
+      <span class="s">"sudo apt-get update"</span>,
+      <span class="s">"sudo apt-get install -y nginx"</span>
+    ]
+  }
+
+  connection {
+    type        = <span class="s">"ssh"</span>
+    user        = <span class="s">"ubuntu"</span>
+    private_key = file(<span class="s">"~/.ssh/id_rsa"</span>)
+    host        = self.public_ip
+  }
+}</code></pre>
+    <p>Burada <code>remote-exec</code> provisioner-i instance yaradıldıqdan sonra onun üzərində əmrləri icra edir. <code>connection</code> bloku isə Terraform-un instance-a necə qoşulacağını göstərir: SSH protokolu, istifadəçi adı, xüsusi açar və hədəf host (<code>self.public_ip</code> — yaradılan instance-ın öz public IP-si).</p>
+    <div class="warn"><strong>Xəbərdarlıq.</strong> Provisioner-lər son çarə hesab olunur. Onlar deklarativ modeli pozur: Terraform icra olunan əmrlərin nəticəsini state-də izləmir, uğursuzluq halında resurs "yararsız" (tainted) işarələnir. Mümkün olduqda əvəzinə <code>user_data</code>, əvvəlcədən hazırlanmış AMI (Packer) və ya Ansible kimi konfiqurasiya idarəsi aləti işlət.</div>
+  </div>
+
+  <p class="section-title">11 · Yekun</p>
+  <div class="card">
+    <p>Bu fəsildə Terraform provider-lərini və resurslarını ətraflı nəzərdən keçirdik. Provider-lər xarici sistemlərlə əlaqə üçün vacibdir, resurslar isə Terraform-un idarə etdiyi infrastrukturun təməl vahidləridir. Provider-lərin necə konfiqurasiya olunduğunu, resursların necə təyin edildiyini, asılılıqların necə idarə olunduğunu və resursun həyat dövrünə necə nəzarət edildiyini gördük.</p>
+    <p>Növbəti fəsildə dəyişənlər, output-lar və data source-lar mövzusuna keçirik — bunlar Terraform konfiqurasiyalarını dinamik və təkrar istifadəyə yararlı etməyin əsas vasitələridir.</p>
+  </div>
+
+  <p class="section-title">12 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>Provider Terraform ilə xarici API arasındakı plugin-dir; resurs yaratmazdan əvvəl mütləq konfiqurasiya olunmalıdır.</li>
+      <li>Provider versiyasını hər zaman sabitlə — versiyasız konfiqurasiya bir gün gözlənilmədən sınacaq.</li>
+      <li><code>alias</code> eyni provider-in bir neçə region və ya hesab üçün nüsxəsini yaratmağa imkan verir; resursda <code>provider = aws.&lt;alias&gt;</code> ilə seçilir.</li>
+      <li>Resurs adı Terraform daxilində istinad üçündür; dəyişdirsən, resurs silinib yenidən yaradılır.</li>
+      <li>Asılılıqlar atribut istinadı ilə avtomatik qurulur; görünməyən asılılıqlar üçün <code>depends_on</code> var.</li>
+      <li><code>lifecycle</code> ilə silinməni qadağan et, sıfır dayanma müddəti üçün əvvəl yarat, xarici dəyişikliklərə isə göz yum.</li>
+      <li>Provisioner-lərdən mümkün qədər çəkin — <code>user_data</code> və ya hazır image daha etibarlıdır.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="01-giris-esaslar.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Giriş və Əsaslar</div></a>
+    <a href="03-deyisen-output-data.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Dəyişənlər, Output-lar və Data Source-lar</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

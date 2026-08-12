@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terraform Kitabı — Tam Bələdçi · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .part-title { font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:#0F172A; margin:28px 0 12px; padding-left:10px; border-left:4px solid #00A859; }
+  .hero { background:#0F172A; border-radius:12px; padding:20px 26px; margin-bottom:26px; }
+  .hero .k { color:#00A859; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:1.6px; }
+  .hero h2 { color:#f8fafc; font-size:1.3rem; margin-top:6px; }
+  .hero p { color:#94a3b8; font-size:0.86rem; margin-top:8px; line-height:1.7; }
+  .stats { display:flex; gap:22px; margin-top:14px; flex-wrap:wrap; }
+  .stats div { color:#E2E8F0; font-size:0.8rem; }
+  .stats b { color:#00A859; font-size:1.1rem; display:block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="crumb"><a href="../kurs.html">← Kurs səhifəsi</a></div>
+  <h1>Terraform Kitabı — Tam Bələdçi</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp · Azərbaycan dilində</p>
+</header>
+
+<main>
+
+  <div class="hero">
+    <div class="k">Sıfırdan qabaqcıl səviyyəyə</div>
+    <h2>Terraform-un bütün mövzuları — 20 fəsildə</h2>
+    <p>Bu bələdçi Terraform-un əsaslarından (provider, resource, state) başlayıb qabaqcıl mövzulara
+       (multi-cloud, DR/HA, Kubernetes, serverless, compliance) qədər gedir. Hər fəsildə izahlar,
+       kod nümunələri, cədvəllər və "yadda saxla" xülasəsi var. Kurs slaydlarının davamı və dərinləşdirilmiş
+       arayış materialı kimi nəzərdə tutulub.</p>
+    <div class="stats">
+      <div><b>20</b> fəsil</div>
+      <div><b>120+</b> mövzu</div>
+      <div><b>AWS · Azure · K8s</b> nümunələri</div>
+    </div>
+  </div>
+
+  <div class="part-title">Bölmə I · Əsaslar</div>
+  <div class="toc-grid">
+    <a class="toc-card" href="01-giris-esaslar.html">
+      <div class="num">Fəsil 01</div>
+      <div class="ttl">Giriş və Əsaslar</div>
+      <div class="desc">Terraform nədir · IaC · niyə istifadə olunur · quraşdırma · ilk konfiqurasiya</div>
+    </a>
+    <a class="toc-card" href="02-provider-resurs.html">
+      <div class="num">Fəsil 02</div>
+      <div class="ttl">Provider-lər və Resurslar</div>
+      <div class="desc">Provider konfiqurasiyası · versiya kilidi · resource blokları · asılılıqlar</div>
+    </a>
+    <a class="toc-card" href="03-deyisen-output-data.html">
+      <div class="num">Fəsil 03</div>
+      <div class="ttl">Dəyişənlər, Output-lar və Data Source-lar</div>
+      <div class="desc">variable tipləri · tfvars · output · data source ilə mövcudu tapmaq</div>
+    </a>
+    <a class="toc-card" href="04-state-backend.html">
+      <div class="num">Fəsil 04</div>
+      <div class="ttl">State İdarəsi və Backend-lər</div>
+      <div class="desc">tfstate · remote state · S3 backend · state locking · komanda işi</div>
+    </a>
+    <a class="toc-card" href="05-modullar-workspace.html">
+      <div class="num">Fəsil 05</div>
+      <div class="ttl">Modullar və Workspace-lər</div>
+      <div class="desc">Modul strukturu · registry modulları · workspace ilə mühit ayrımı</div>
+    </a>
+    <a class="toc-card" href="06-sert-dovr-dinamik.html">
+      <div class="num">Fəsil 06</div>
+      <div class="ttl">Şərtlər, Dövrlər və Dinamik Bloklar</div>
+      <div class="desc">count · for_each · conditional expressions · dynamic bloklar</div>
+    </a>
+  </div>
+
+  <div class="part-title">Bölmə II · Keyfiyyət və avtomatlaşdırma</div>
+  <div class="toc-grid">
+    <a class="toc-card" href="07-test-debug.html">
+      <div class="num">Fəsil 07</div>
+      <div class="ttl">Test və Debug</div>
+      <div class="desc">validate · plan yoxlaması · sandbox · Terratest · TF_LOG ilə debug</div>
+    </a>
+    <a class="toc-card" href="08-best-practice.html">
+      <div class="num">Fəsil 08</div>
+      <div class="ttl">Best Practice və Qabaqcıl Üsullar</div>
+      <div class="desc">Kod strukturu · adlandırma · qabaqcıl texnikalar</div>
+    </a>
+    <a class="toc-card" href="09-cicd.html">
+      <div class="num">Fəsil 09</div>
+      <div class="ttl">CI/CD İnteqrasiyası</div>
+      <div class="desc">GitHub Actions · GitLab CI · pipeline qaydaları · avtomatik plan/apply</div>
+    </a>
+  </div>
+
+  <div class="part-title">Bölmə III · Miqyas və dayanıqlılıq</div>
+  <div class="toc-grid">
+    <a class="toc-card" href="10-multicloud.html">
+      <div class="num">Fəsil 10</div>
+      <div class="ttl">Multi-Cloud Deploy</div>
+      <div class="desc">Bir koddan AWS + Azure · provider alias · credential idarəsi</div>
+    </a>
+    <a class="toc-card" href="11-dr-ha.html">
+      <div class="num">Fəsil 11</div>
+      <div class="ttl">Fəlakətdən Bərpa və Yüksək Əlçatanlıq</div>
+      <div class="desc">Multi-region · backup · replikasiya · Kubernetes üçün DR</div>
+    </a>
+    <a class="toc-card" href="12-hybrid-cloud.html">
+      <div class="num">Fəsil 12</div>
+      <div class="ttl">Hibrid Cloud</div>
+      <div class="desc">On-prem + cloud birgə · VPN/Direct Connect · resurs idarəsi</div>
+    </a>
+  </div>
+
+  <div class="part-title">Bölmə IV · Prod mühiti</div>
+  <div class="toc-grid">
+    <a class="toc-card" href="13-production-security.html">
+      <div class="num">Fəsil 13</div>
+      <div class="ttl">Prod Mühitində Terraform və Təhlükəsizlik</div>
+      <div class="desc">Çətinliklər · state təhlükəsizliyi · secrets · komanda əməkdaşlığı</div>
+    </a>
+    <a class="toc-card" href="14-compliance.html">
+      <div class="num">Fəsil 14</div>
+      <div class="ttl">Uyğunluq (Compliance) və Audit</div>
+      <div class="desc">Policy as Code · Sentinel/OPA · CI-da yoxlama · audit logları</div>
+    </a>
+    <a class="toc-card" href="15-dr-ha-2.html">
+      <div class="num">Fəsil 15</div>
+      <div class="ttl">DR/HA — Praktik Nümunələr</div>
+      <div class="desc">Multi-region deploy · avtomatik backup · failover · monitorinq</div>
+    </a>
+    <a class="toc-card" href="16-cost.html">
+      <div class="num">Fəsil 16</div>
+      <div class="ttl">Xərc İdarəetməsi</div>
+      <div class="desc">Xərc strategiyaları · budget alert · S3 lifecycle · autoscaling</div>
+    </a>
+  </div>
+
+  <div class="part-title">Bölmə V · Müasir platformalar</div>
+  <div class="toc-grid">
+    <a class="toc-card" href="17-multicloud-2.html">
+      <div class="num">Fəsil 17</div>
+      <div class="ttl">Multi-Cloud — Praktik Nümunələr</div>
+      <div class="desc">AWS + Azure birgə deploy · şəbəkə məsələləri · best practice</div>
+    </a>
+    <a class="toc-card" href="18-kubernetes.html">
+      <div class="num">Fəsil 18</div>
+      <div class="ttl">Kubernetes və EKS</div>
+      <div class="desc">EKS klasteri · k8s resursları · autoscaling · idarəetmə qaydaları</div>
+    </a>
+    <a class="toc-card" href="19-serverless.html">
+      <div class="num">Fəsil 19</div>
+      <div class="ttl">Serverless — Lambda və Azure Functions</div>
+      <div class="desc">Funksiya deploy · IAM rolları · trigger-lər · best practice</div>
+    </a>
+    <a class="toc-card" href="20-monitoring.html">
+      <div class="num">Fəsil 20</div>
+      <div class="ttl">Monitorinq və Loqlama</div>
+      <div class="desc">CloudWatch · Azure Monitor · alarm-lar · mərkəzi loqlama</div>
+    </a>
+  </div>
+
+  <div class="tip" style="margin-top:26px;">
+    ✅ <b>Necə istifadə etməli:</b> ardıcıl oxumaq şərt deyil — Bölmə I əsaslar üçün, qalanları
+    <b>arayış</b> kimi işləyir: hansı mövzu lazımdırsa, birbaşa ora keç. Hər fəslin sonunda
+    "Yadda saxla" xülasəsi var.
+  </div>
+
+  <div class="note">
+    📚 Kursun digər materialları: <a href="../kurs.html">vahid kurs səhifəsi</a> ·
+    <a href="../bonus/terraform-dili-soraq.html">Soraq kitabçası</a> ·
+    <a href="../bonus/data-vs-resource.html">data vs resource</a> ·
+    <a href="../bonus/modullar-sade-dilde.html">Modullar sadə dildə</a>
+  </div>
+
+</main>
+
+<footer>
+  Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı ·
+  <a href="../index.html">Ana səhifə</a>
+</footer>
+
+</body>
+</html>

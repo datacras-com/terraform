@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bonus: data vs resource — Terraform-un İki Bloku · DPE-07</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #F7F9F8; color: #0F172A; line-height: 1.65; }
+  header { background: #0F172A; padding: 28px 48px 24px; border-bottom: 3px solid #00A859; }
+  header h1 { color: #00A859; font-size: 1.45rem; font-weight: 700; }
+  header p { color: #848688; font-size: 0.82rem; margin-top: 5px; }
+  .badge { display:inline-block; background:#9333EA; color:#fff; font-size:0.68rem; font-weight:600; padding:2px 8px; border-radius:10px; margin-left:8px; vertical-align:middle; }
+  main { max-width: 920px; margin: 36px auto; padding: 0 24px; }
+  .intro { background:#fff; border:1px solid #E2E8F0; border-left:4px solid #9333EA; padding:16px 20px; border-radius:0 8px 8px 0; margin-bottom:28px; font-size:0.9rem; color:#334155; }
+  .section-title { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:#848688; margin:32px 0 14px; }
+  .card { background:#fff; border:1px solid #E2E8F0; border-radius:10px; padding:18px 22px; margin-bottom:16px; }
+  .card h2 { font-size:1rem; color:#00703A; margin-bottom:8px; }
+  .card p, .card li { font-size:0.87rem; color:#334155; }
+  .card ul, .card ol { padding-left:22px; margin:8px 0; }
+  .card li { margin-bottom:6px; }
+  table { font-size:0.83rem; border-collapse:collapse; width:100%; margin:10px 0; }
+  th { background:#0F172A; color:#A7F3D0; padding:8px 12px; text-align:left; }
+  td { border:1px solid #E2E8F0; padding:8px 12px; background:#fff; vertical-align:top; }
+  tr:nth-child(even) td { background:#F8FAFC; }
+  code { background:#E8F5EE; color:#00703A; padding:2px 6px; border-radius:4px; font-size:0.82em; border:1px solid #C3E4D0; font-family:'SF Mono',Menlo,Consolas,monospace; }
+  pre { background:#1E293B; color:#E2E8F0; padding:12px 16px; border-radius:8px; border-left:4px solid #00A859; font-size:0.78rem; line-height:1.55; margin:10px 0; overflow-x:auto; color-scheme:dark; font-family:'SF Mono',Menlo,Consolas,monospace; }
+  pre.read { border-left-color:#3B82F6; }
+  pre code { background:transparent; color:#E2E8F0; border:0; padding:0; font-size:1em; }
+  pre .c { color:#64748B; } pre .k { color:#C084FC; } pre .s { color:#FBBF24; } pre .g { color:#4ADE80; } pre .r { color:#F87171; }
+  .tip { background:#F0FAF4; border:1px solid #C3E4D0; border-left:4px solid #00A859; padding:10px 14px; border-radius:0 6px 6px 0; margin:12px 0; font-size:0.85rem; }
+  .warn { background:#FFF8E1; border:1px solid #FDE68A; border-left:4px solid #F59E0B; padding:10px 14px; border-radius:0 6px 6px 0; margin:12px 0; font-size:0.85rem; color:#78350F; }
+  .ai { background:#F3E8FF; border:1px solid #D8B4FE; border-left:4px solid #9333EA; padding:10px 14px; border-radius:0 6px 6px 0; margin:12px 0; font-size:0.85rem; color:#581C87; }
+  .two { display:flex; gap:16px; }
+  .two > div { flex:1; min-width:0; }
+  .col-w { background:#F0FAF4; border:1.5px solid #C3E4D0; border-top:4px solid #00A859; border-radius:10px; padding:14px 16px; }
+  .col-r { background:#EFF6FF; border:1.5px solid #BFDBFE; border-top:4px solid #3B82F6; border-radius:10px; padding:14px 16px; }
+  .col-w h3 { color:#00703A; font-size:0.95rem; } .col-r h3 { color:#1D4ED8; font-size:0.95rem; }
+  .flow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:12px 0; }
+  .flow .step { background:#fff; border:1.5px solid #CBD5E1; border-radius:8px; padding:7px 13px; font-size:0.8rem; font-weight:600; }
+  .flow .arr { color:#848688; font-size:1.1rem; }
+  footer { text-align:center; padding:24px; color:#848688; font-size:0.75rem; border-top:1px solid #E2E8F0; margin-top:30px; }
+  a { color:#00A859; font-weight:600; }
+  @media (max-width:760px){ .two{flex-direction:column;} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>data vs resource — Terraform-un İki Bloku <span class="badge">BONUS</span></h1>
+  <p>DPE-07 · Yaratmaq vs tapmaq · AWS və vSphere nümunələri ilə</p>
+</header>
+
+<main>
+
+  <div class="intro">
+    Terraform kodunda əsasən iki cür blok görürsən: <code>resource</code> və <code>data</code>.
+    Fərqi bir cümlədədir: <b><code>resource</code> yaradır və idarə edir, <code>data</code> isə yalnız oxuyur.</b>
+    Bu sənəd həmin fərqi diaqramlarla, state davranışı ilə və öz kodumuzdan nümunələrlə açır.
+  </div>
+
+  <p class="section-title">1 · Ən sadə şəkil</p>
+  <div class="card">
+    <div class="two">
+      <div class="col-w">
+        <h3>✚ resource — YAZMA (write)</h3>
+        <p style="font-size:0.84rem; margin-top:6px;">"Bu obyekt <b>mənimdir</b>: yoxdursa yarat, fərqlidirsə düzəlt, kodan silsəm — sil."</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_vpc" "prd"</span> {
+  cidr_block = <span class="s">"10.0.0.0/16"</span>
+}</code></pre>
+        <p style="font-size:0.8rem; color:#00703A;"><b>apply</b> → VPC yaranır · <b>destroy</b> → VPC silinir</p>
+      </div>
+      <div class="col-r">
+        <h3>🔍 data — OXUMA (read)</h3>
+        <p style="font-size:0.84rem; margin-top:6px;">"Bu obyekt <b>başqasınındır</b>: mən yalnız onu tapıb məlumatını götürürəm."</p>
+<pre class="read"><code><span class="k">data</span> <span class="s">"aws_availability_zones" "az"</span> {
+  state = <span class="s">"available"</span>
+}</code></pre>
+        <p style="font-size:0.8rem; color:#1D4ED8;"><b>apply</b> → heç nə yaranmır · <b>destroy</b> → heç nə silinmir</p>
+      </div>
+    </div>
+    <div class="tip">✅ Yadda saxlama düsturu: <b>resource = yazma · data = oxuma.</b> Terraform yalnız <b>yazdığına</b> görə məsuliyyət daşıyır.</div>
+  </div>
+
+  <p class="section-title">2 · Yan-yana müqayisə</p>
+  <div class="card">
+    <table>
+      <tr><th style="width:24%;">Meyar</th><th style="width:38%;">✚ resource</th><th>🔍 data</th></tr>
+      <tr><td><b>Nə edir</b></td><td>Obyekti yaradır, dəyişir, silir</td><td>Mövcud obyekti tapıb <b>atributlarını oxuyur</b></td></tr>
+      <tr><td><b>Sahibi kimdir</b></td><td>Terraform (bu layihə)</td><td>Başqası: platforma, digər komanda, başqa Terraform layihəsi</td></tr>
+      <tr><td><b>State-də</b></td><td>İdarə olunan resurs kimi qeyd olunur</td><td>Yalnız <b>oxunmuş surət</b> kimi saxlanır</td></tr>
+      <tr><td><b>plan-da görünüşü</b></td><td><span style="color:#00703A;">+</span> əlavə · <span style="color:#B45309;">~</span> dəyişiklik · <span style="color:#DC2626;">-</span> silinmə</td><td>Adətən heç nə — sadəcə "read" (bəzən: <em>will be read during apply</em>)</td></tr>
+      <tr><td><b>destroy zamanı</b></td><td><b>Real obyekt silinir</b></td><td>Heç nə silinmir — sadəcə state-dən çıxır</td></tr>
+      <tr><td><b>Tapılmasa</b></td><td>Yaradır</td><td><b>Xəta verir:</b> "…not found" → plan dayanır</td></tr>
+      <tr><td><b>İstinad forması</b></td><td><code>aws_vpc.prd.id</code></td><td><code>data.aws_ami.ubuntu.id</code> <span style="color:#64748B;">(başında <b>data.</b>)</span></td></tr>
+      <tr><td><b>Nə vaxt oxunur</b></td><td>apply zamanı yaradılır</td><td><b>Hər plan-da yenidən</b> oxunur (dəyər dəyişibsə, plan bunu görür)</td></tr>
+    </table>
+  </div>
+
+  <p class="section-title">3 · Həyat dövrü — diaqramla</p>
+  <div class="card">
+    <p><b>resource-un dövrü:</b> Terraform obyektin bütün ömrünə cavabdehdir.</p>
+    <div class="flow">
+      <span class="step" style="border-color:#00A859;">kod yazılır</span><span class="arr">→</span>
+      <span class="step" style="border-color:#00A859;">apply: <b>yaradılır</b></span><span class="arr">→</span>
+      <span class="step" style="border-color:#B45309;">kod dəyişir → apply: <b>düzəldilir</b></span><span class="arr">→</span>
+      <span class="step" style="border-color:#DC2626;">destroy: <b>silinir</b></span>
+    </div>
+
+    <p style="margin-top:14px;"><b>data-nın dövrü:</b> Terraform yalnız baxır — obyekt onun nəzarətindən kənardadır.</p>
+    <div class="flow">
+      <span class="step" style="border-color:#3B82F6;">obyekt <b>onsuz da mövcuddur</b></span><span class="arr">→</span>
+      <span class="step" style="border-color:#3B82F6;">plan: <b>oxunur</b></span><span class="arr">→</span>
+      <span class="step" style="border-color:#3B82F6;">dəyəri kodda istifadə olunur</span><span class="arr">→</span>
+      <span class="step" style="border-color:#64748B;">destroy: <b>obyektə toxunulmur</b></span>
+    </div>
+
+    <div class="warn">⚠️ Klassik yanlış anlama: "data silinəndə obyekt də silinir". <b>Xeyr.</b> Data blokunu koddan silsən — sadəcə həmin məlumatı oxumağı dayandırırsan. AWS-in availability zone-ları, vCenter-in datastore-u yerindədir.</div>
+  </div>
+
+  <p class="section-title">4 · Bir kodda yan-yana: bizim AWS layihəmiz</p>
+  <div class="card">
+<pre><code><span class="c"># 🔍 DATA — AWS-in özündən oxuyuruq (biz yaratmırıq)</span>
+<span class="k">data</span> <span class="s">"aws_availability_zones" "available"</span> {
+  state = <span class="s">"available"</span>
+}
+
+<span class="c"># ✚ RESOURCE — biz yaradırıq, bizim məsuliyyətimizdədir</span>
+<span class="k">resource</span> <span class="s">"aws_vpc" "prd"</span> {
+  cidr_block = <span class="s">"10.0.0.0/16"</span>
+}
+
+<span class="c"># ✚ RESOURCE — və data-nın oxuduğu dəyəri istifadə edirik</span>
+<span class="k">resource</span> <span class="s">"aws_subnet" "pub"</span> {
+  vpc_id            = aws_vpc.prd.id                                <span class="c"># ← resource istinadı</span>
+  availability_zone = <span class="g">data</span>.aws_availability_zones.available.names[0]  <span class="c"># ← data istinadı</span>
+  cidr_block        = <span class="s">"10.0.1.0/24"</span>
+}</code></pre>
+    <div class="tip">✅ Diqqət: istinadın <b>başlanğıcı</b> hər şeyi deyir — <code>aws_vpc.prd.id</code> (resource) vs <code>data.aws_...</code> (data). Kod oxuyanda ilk baxışdan bilirsən ki, obyekt bizimdir, yoxsa kənardan gəlir.</div>
+  </div>
+
+  <p class="section-title">5 · vSphere: data-nın əsl gücü</p>
+  <div class="card">
+    <p>On-prem-də nisbət tərsinə çevrilir — <b>5 data + 1 resource</b>. Çünki datastore, şəbəkə, template <b>onsuz da var</b>, biz yalnız VM yaradırıq:</p>
+<pre class="read"><code><span class="k">data</span> <span class="s">"vsphere_datacenter" "dc"</span>       { name = <span class="s">"Datacenter"</span> }
+<span class="k">data</span> <span class="s">"vsphere_datastore" "ds"</span>        { name = <span class="s">"datastore1"</span> …}
+<span class="k">data</span> <span class="s">"vsphere_compute_cluster" "cl"</span>  { name = <span class="s">"Cluster01"</span> …}
+<span class="k">data</span> <span class="s">"vsphere_network" "net"</span>         { name = <span class="s">"VM Network"</span> …}
+<span class="k">data</span> <span class="s">"vsphere_virtual_machine" "tpl"</span> { name = <span class="s">"ubuntu-2404-template"</span> …}</code></pre>
+<pre><code><span class="k">resource</span> <span class="s">"vsphere_virtual_machine" "vm"</span> {
+  datastore_id     = <span class="g">data</span>.vsphere_datastore.ds.id          <span class="c"># tapılanı istifadə edir</span>
+  resource_pool_id = <span class="g">data</span>.vsphere_compute_cluster.cl.resource_pool_id
+  clone { template_uuid = <span class="g">data</span>.vsphere_virtual_machine.tpl.id }
+}</code></pre>
+    <div class="ai">🤖 Maraqlı incəlik: <code>vsphere_virtual_machine</code> həm <b>data</b>, həm <b>resource</b> kimi mövcuddur! Eyni tip: <code>data</code> variantı mövcud VM/template-i <b>tapır</b>, <code>resource</code> variantı yeni VM <b>yaradır</b>. Adı eyni, işi tam fərqli.</div>
+  </div>
+
+  <p class="section-title">6 · Nə vaxt hansını seçməli? — qərar ağacı</p>
+  <div class="card">
+    <div class="flow" style="flex-direction:column; align-items:flex-start; gap:10px;">
+      <div style="background:#0F172A; color:#fff; border-radius:8px; padding:9px 16px; font-size:0.86rem; font-weight:600;">❓ Bu obyekti mən yaradıram?</div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; width:100%;">
+        <div class="col-w" style="flex:1;">
+          <div style="font-weight:700; color:#00703A;">BƏLİ → <code>resource</code></div>
+          <ul style="margin-top:6px; font-size:0.82rem;">
+            <li>Yeni VPC, subnet, VM, S3 bucket</li>
+            <li>Silinəndə getməlidir</li>
+            <li>Konfiqurasiyasını mən idarə edirəm</li>
+          </ul>
+        </div>
+        <div class="col-r" style="flex:1;">
+          <div style="font-weight:700; color:#1D4ED8;">XEYR → <code>data</code></div>
+          <ul style="margin-top:6px; font-size:0.82rem;">
+            <li>Hazır AMI / template</li>
+            <li>Başqa komandanın VPC-si</li>
+            <li>Platformanın öz siyahıları (AZ-lər, regionlar)</li>
+            <li>Datastore, port group, cluster</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="tip">✅ Praktik nisbət: <b>cloud = çox resource, az data</b> (hər şeyi özün yaradırsan) · <b>on-prem = əvvəl data ilə təməli tap, sonra resource ilə yarat.</b></div>
+  </div>
+
+  <p class="section-title">7 · Tez-tez verilən suallar</p>
+  <div class="card">
+    <h2>“data bloku state-də saxlanılır?”</h2>
+    <p>Bəli, amma <b>surət kimi</b> — Terraform oxuduğu dəyərləri state-də saxlayır ki, planları müqayisə edə bilsin.
+       Lakin bu qeyd obyektin <b>sahibliyini</b> vermir: destroy onu silmir.</p>
+
+    <h2 style="margin-top:12px;">“data dəyəri dəyişsə nə olar?”</h2>
+    <p>Məsələn, ən son AMI yeniləndi və ya vCenter-də datastore adı dəyişdi. Növbəti <code>plan</code>-da data yenidən oxunur:
+       ad tapılmasa — <b>xəta</b>; dəyər dəyişibsə — ondan asılı resurslarda <b>dəyişiklik (bəzən replace)</b> görünəcək.</p>
+    <div class="warn">⚠️ Ona görə "ən son AMI" tipli data-lardan prod-da ehtiyatlı istifadə edilir: image yeniləndikcə serverlər <b>öz-özünə replace</b> olunmasın deyə versiya sabitlənir.</div>
+
+    <h2 style="margin-top:12px;">“data blokunu silsəm, infrastruktura nə olar?</h2>
+    <p>Heç nə. Yalnız həmin məlumatı oxumursan. Amma ona <b>istinad edən resurslar</b> varsa, kod xəta verəcək —
+       əvvəlcə istinadları düzəlt.</p>
+
+    <h2 style="margin-top:12px;">“Mövcud obyekti idarə etməyə başlamaq istəyirəm — data kifayətdir?”</h2>
+    <p>Xeyr. <code>data</code> yalnız oxuyur. İdarəni ələ almaq üçün <b>import</b> lazımdır:
+       <code>terraform import</code> (və ya <code>import</code> bloku) mövcud obyekti state-ə <b>resource kimi</b> qeydiyyata alır.</p>
+  </div>
+
+  <p class="section-title">8 · Üç cümlədə yadda saxla</p>
+  <div class="card">
+    <ol style="font-size:0.92rem; font-weight:600;">
+      <li><code>resource</code> = <b>yazma</b>: yaradır, dəyişir, silir — Terraform onun sahibidir.</li>
+      <li><code>data</code> = <b>oxuma</b>: mövcud olanı tapır, dəyərini verir — heç nəyə toxunmur.</li>
+      <li>İstinadın başında <code>data.</code> varsa — kənardan gələn məlumatdır; yoxdursa — sənin yaratdığın obyekt.</li>
+    </ol>
+  </div>
+
+</main>
+
+<footer>
+  Data Platform &amp; Engineering Bootcamp · DPE-07 · Bonus material ·
+  <a href="terraform-dili-soraq.html">← Soraq Kitabçası</a> · <a href="../index.html">Ana səhifə</a>
+</footer>
+
+</body>
+</html>

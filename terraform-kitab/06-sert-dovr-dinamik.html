@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Şərtlər, Dövrlər və Dinamik Bloklar · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 6</div>
+  <h1>Şərtlər, Dövrlər və Dinamik Bloklar</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">
+    İndiyə qədər yazdığımız konfiqurasiyalar sabit idi. Bu fəsildə Terraform-un ən güclü üç vasitəsini öyrənəcəyik:
+    <strong>şərti ifadələr</strong> (mühitə görə fərqli dəyər seçmək), <strong>for dövrləri</strong> (siyahı və map üzərində gəzərək çoxlu resurs yaratmaq)
+    və <strong>dinamik bloklar</strong> (resursun içindəki iç-içə blokları avtomatik generasiya etmək).
+    Bu üçü birlikdə təkrarçılığı aradan qaldırır və konfiqurasiyanı miqyaslana bilən edir.
+  </div>
+
+  <p class="section-title">1 · Şərti ifadələr</p>
+  <div class="card">
+    <h2>Sintaksis</h2>
+    <p>
+      Terraform-da şərti ifadələr bir çox proqramlaşdırma dilindəki üçlü (ternary) operatora bənzəyir və giriş dəyərlərinə əsasən konfiqurasiyanı uyğunlaşdırmağa imkan verir.
+      Format belədir:
+    </p>
+<pre><code>condition ? true_value : false_value</code></pre>
+    <ul>
+      <li><strong>condition</strong> — yoxlanılan şərt, məsələn <code>var.environment == "production"</code>.</li>
+      <li><strong>true_value</strong> — şərt doğru olanda işlədilən dəyər.</li>
+      <li><strong>false_value</strong> — şərt yanlış olanda işlədilən dəyər.</li>
+    </ul>
+    <div class="note">
+      Şərtin hər iki qolu <strong>eyni tipdə</strong> olmalıdır. Terraform tipləri avtomatik uyğunlaşdırmağa çalışır, amma məsələn string və list qarışdırılanda plan mərhələsində xəta verir.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Nümunə: mühitə görə instance ölçüsü</h2>
+    <p>
+      Tutaq ki, dev mühitində <code>t2.micro</code>, prod mühitində isə <code>t3.large</code> işlətmək istəyirsiniz.
+      Bunu şərti ifadə ilə həll etmək olar:
+    </p>
+<pre><code><span class="k">variable</span> <span class="s">"environment"</span> {
+  default = <span class="s">"dev"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+
+  <span class="c"># prod-da güclü, digər mühitlərdə ucuz tip</span>
+  instance_type = var.environment == <span class="s">"production"</span> ? <span class="s">"t3.large"</span> : <span class="s">"t2.micro"</span>
+}</code></pre>
+    <p>
+      Burada <code>instance_type</code> <code>var.environment</code> dəyərindən asılıdır: mühit <code>production</code>-dursa <code>t3.large</code>, əks halda <code>t2.micro</code> seçilir.
+    </p>
+    <div class="tip">
+      İki-üçdən çox variant olanda üçlü operatoru iç-içə yazmaq əvəzinə <code>locals</code> daxilində map işlədin:
+      <code>local.sizes[var.environment]</code>. Bu, oxunaqlığı xeyli artırır.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Nümunə: resursun şərti yaradılması</h2>
+    <p>
+      Şərti ifadə ilə resursun ümumiyyətlə yaradılıb-yaradılmayacağını da idarə etmək olar.
+      Bu, məsələn load balancer-in yalnız prod mühitində qurulması kimi hallar üçün əlverişlidir.
+    </p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_elb"</span> <span class="s">"my_elb"</span> {
+  <span class="c"># true olanda 1 ədəd, false olanda heç biri</span>
+  count = var.create_elb ? 1 : 0
+
+  name               = <span class="s">"my-load-balancer"</span>
+  availability_zones = [<span class="s">"us-west-1a"</span>, <span class="s">"us-west-1b"</span>]
+}</code></pre>
+    <p>
+      <code>count</code> arqumenti resursun yaradılıb-yaradılmayacağını təyin edir: <code>var.create_elb</code> doğrudursa bir load balancer yaranır, yanlışdırsa heç biri.
+    </p>
+    <div class="warn">
+      <code>count</code> işlədilən resurs siyahıya çevrilir — ona müraciət <code>aws_elb.my_elb[0].dns_name</code> şəklində olur.
+      Resurs yaradılmaya da bilər, ona görə birbaşa indeksə müraciət etməzdən əvvəl <code>one(aws_elb.my_elb[*].dns_name)</code> kimi təhlükəsiz üsullardan istifadə edin.
+    </div>
+  </div>
+
+  <p class="section-title">2 · For dövrləri</p>
+  <div class="card">
+    <h2>Əsas sintaksis</h2>
+    <p>
+      Terraform siyahı və map-lər üzərində gəzmək, beləliklə çoxlu resurs və ya dinamik konfiqurasiya yaratmaq üçün <code>for</code> dövrlərini dəstəkləyir.
+      Eyni resursun bir neçə nüsxəsini qurmaq və ya dəyərlər siyahısına əsasən parametr formalaşdırmaq lazım olanda dövrlər əvəzsizdir.
+    </p>
+<pre><code><span class="c"># 1) siyahı üzərində gəzmə</span>
+[for item in list : item_expression]
+
+<span class="c"># 2) map-in açar və dəyərləri üzərində gəzmə</span>
+{for key, value in map : key_expression =&gt; value_expression}</code></pre>
+    <p>Kvadrat mötərizə nəticədə siyahı, fiqurlu mötərizə isə map verir.</p>
+  </div>
+
+  <div class="card">
+    <h2>Nümunə: bir neçə EC2 instance yaratmaq</h2>
+    <p>Instance tiplərinin siyahısına əsasən bir neçə instance yaratmaq üçün siyahının uzunluğundan istifadə edirik:</p>
+<pre><code><span class="k">variable</span> <span class="s">"instance_types"</span> {
+  default = [<span class="s">"t2.micro"</span>, <span class="s">"t2.small"</span>, <span class="s">"t2.medium"</span>]
+}
+
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instances"</span> {
+  count = length(var.instance_types)
+
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = var.instance_types[count.index]
+}</code></pre>
+    <ul>
+      <li><code>count</code> siyahının hər elementi üçün bir EC2 instance yaradır.</li>
+      <li><code>count.index</code> cari elementin nömrəsini göstərir (0-dan başlayır).</li>
+    </ul>
+    <div class="warn">
+      <code>count</code> resursları <strong>indeksə görə</strong> izləyir. Siyahının ortasından bir element silinsə, ondan sonrakı bütün resurslar sürüşür və Terraform onları silib yenidən yaratmağa çalışır.
+      Elementlərin sabit kimliyi vacibdirsə, <code>count</code> əvəzinə <code>for_each</code> işlədin.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Nümunə: teq-lərin dinamik qurulması</h2>
+    <p><code>for</code> dövrü ilə resurs atributlarını, məsələn teq-ləri də dinamik formalaşdırmaq olar:</p>
+<pre><code><span class="k">variable</span> <span class="s">"tags"</span> {
+  type = map(string)
+
+  default = {
+    Name  = <span class="s">"example-instance"</span>
+    Owner = <span class="s">"admin"</span>
+    Env   = <span class="s">"dev"</span>
+  }
+}
+
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  <span class="c"># map üzərində gəzərək teq-ləri qururuq</span>
+  tags = { for key, value in var.tags : key =&gt; value }
+}</code></pre>
+    <ul>
+      <li>Dövr <code>tags</code> map-i üzərində gəzir və teq-ləri instance-a tətbiq edir.</li>
+      <li>Map-dəki hər açar-dəyər cütü bir teq-ə çevrilir.</li>
+    </ul>
+    <div class="tip">
+      Dövr həm də çevirmə üçün əlverişlidir. Məsələn bütün açarları böyük hərflə yazmaq:
+      <code>{ for k, v in var.tags : upper(k) =&gt; v }</code>, yaxud filtr əlavə etmək:
+      <code>{ for k, v in var.tags : k =&gt; v if v != "" }</code>.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Nümunə: bir neçə availability zone üzrə subnet</h2>
+<pre><code><span class="k">variable</span> <span class="s">"availability_zones"</span> {
+  default = [<span class="s">"us-west-1a"</span>, <span class="s">"us-west-1b"</span>]
+}
+
+<span class="k">resource</span> <span class="s">"aws_subnet"</span> <span class="s">"my_subnets"</span> {
+  count = length(var.availability_zones)
+
+  vpc_id = aws_vpc.my_vpc.id
+
+  <span class="c"># hər zona üçün ayrıca alt-şəbəkə hesablanır</span>
+  cidr_block        = cidrsubnet(<span class="s">"10.0.0.0/16"</span>, 8, count.index)
+  availability_zone = var.availability_zones[count.index]
+}</code></pre>
+    <p>
+      Dövr availability zone-ların siyahısı üzrə gəzir və hər birində bir subnet yaradır.
+      <code>cidrsubnet</code> funksiyası isə əsas CIDR blokunu bölərək hər subnet üçün ayrı diapazon hesablayır — diapazonları əl ilə yazmağa ehtiyac qalmır.
+    </p>
+  </div>
+
+  <p class="section-title">3 · Dinamik bloklar</p>
+  <div class="card">
+    <h2>Dinamik blok nədir</h2>
+    <p>
+      Dinamik bloklar resursun daxilində iç-içə blokları avtomatik generasiya etməyə imkan verir: neçə blok yaradılacağını və hər birinin məzmununu dəyişənlərlə idarə edirsiniz.
+      Bu, security group, load balancer və network ACL kimi çoxlu iç-içə blok tələb edən resurslarda xüsusilə faydalıdır.
+    </p>
+    <ul>
+      <li><strong>for_each</strong> — üzərində gəzilən kolleksiyanı (siyahı və ya map) təyin edir.</li>
+      <li><strong>content</strong> — hər element üçün generasiya olunacaq blokun məzmununu təyin edir.</li>
+      <li><strong>iterator</strong> — dövr dəyişəninin adı (susmaya görə blokun öz adı, məsələn <code>ingress</code>).</li>
+    </ul>
+    <table>
+      <tr><th>Vasitə</th><th>Nə yaradır</th><th>Tipik ssenari</th></tr>
+      <tr><td>Şərti ifadə</td><td>Tək dəyər seçir</td><td>Mühitə görə instance tipi</td></tr>
+      <tr><td><code>count</code></td><td>Resursun N nüsxəsi</td><td>Eyni tipli, sırası vacib olmayan resurslar</td></tr>
+      <tr><td><code>for_each</code></td><td>Açara bağlı resurs nüsxələri</td><td>Adları sabit qalmalı olan resurslar</td></tr>
+      <tr><td><code>for</code> ifadəsi</td><td>Siyahı və ya map dəyər</td><td>Teq, ad, CIDR siyahılarının hesablanması</td></tr>
+      <tr><td><code>dynamic</code> blok</td><td>Resurs daxilində iç-içə bloklar</td><td>Security group qaydaları, listener-lər</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Nümunə: dinamik security group qaydaları</h2>
+    <p>Fərqli portlar üçün bir neçə security group qaydası lazımdırsa, portlar siyahısı üzərində dinamik blokla gəzmək olar:</p>
+<pre><code><span class="k">variable</span> <span class="s">"allowed_ports"</span> {
+  default = [22, 80, 443]
+}
+
+<span class="k">resource</span> <span class="s">"aws_security_group"</span> <span class="s">"my_sg"</span> {
+  name = <span class="s">"example-sg"</span>
+
+  <span class="k">dynamic</span> <span class="s">"ingress"</span> {
+    for_each = var.allowed_ports
+
+    content {
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = <span class="s">"tcp"</span>
+      cidr_blocks = [<span class="s">"0.0.0.0/0"</span>]
+    }
+  }
+}</code></pre>
+    <ul>
+      <li>Dinamik blok <code>allowed_ports</code> dəyişəni üzərində gəzir və hər port üçün ayrıca <code>ingress</code> bloku yaradır.</li>
+      <li><code>ingress.value</code> dövrün cari elementinə — yəni cari porta — müraciət edir.</li>
+    </ul>
+    <div class="warn">
+      Nümunədəki <code>0.0.0.0/0</code> dəyəri qaydanı bütün internetə açır. Öyrənmə məqsədilə uyğundur, lakin əsl mühitlərdə,
+      xüsusilə 22-ci port üçün, mütləq konkret IP diapazonu göstərin.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Nümunə: autoscaling siyasətləri</h2>
+    <p>Eyni yanaşma ilə bir tətbiq üçün bir neçə autoscaling siyasəti qurmaq olar:</p>
+<pre><code><span class="k">variable</span> <span class="s">"scaling_policies"</span> {
+  default = {
+    scale_up   = { adjustment = 2,  cooldown = 300 }
+    scale_down = { adjustment = -1, cooldown = 300 }
+  }
+}
+
+<span class="k">resource</span> <span class="s">"aws_autoscaling_policy"</span> <span class="s">"my_policy"</span> {
+  for_each = var.scaling_policies
+
+  name                   = <span class="s">"${each.key}-policy"</span>
+  scaling_adjustment     = each.value.adjustment
+  cooldown               = each.value.cooldown
+  adjustment_type        = <span class="s">"ChangeInCapacity"</span>
+  autoscaling_group_name = aws_autoscaling_group.my_asg.name
+}</code></pre>
+    <ul>
+      <li><code>for_each</code> map üzərində gəzərək iki siyasət (artırma və azaltma) yaradır.</li>
+      <li><code>each.key</code> siyasətin adını (<code>scale_up</code>, <code>scale_down</code>), <code>each.value</code> isə onun parametrlərini verir.</li>
+      <li>Hər siyasətin <code>scaling_adjustment</code> və <code>cooldown</code> dəyərləri fərqlidir.</li>
+    </ul>
+    <div class="note">
+      <code>for_each</code> resursları indeksə deyil, <strong>açara</strong> bağlayır: müraciət <code>aws_autoscaling_policy.my_policy["scale_up"]</code> şəklində olur.
+      Map-dən bir element silinsə, yalnız ona uyğun resurs silinir — qalanlar toxunulmaz qalır.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Dinamik blokları nə vaxt işlətməli</h2>
+    <p>Dinamik bloklar bu hallarda faydalıdır:</p>
+    <ul>
+      <li>Eyni tipli çoxlu iç-içə blok lazım olanda — security group qaydaları, autoscaling siyasətləri, listener-lər.</li>
+      <li>Blokların sayı və ya məzmunu giriş dəyişənlərindən asılı olaraq dəyişəndə.</li>
+    </ul>
+    <p>
+      Dinamik bloklar konfiqurasiyadakı təkrarçılığı azaldır və oxşar blokları əl ilə yazmaq ehtiyacını aradan qaldırır.
+    </p>
+    <div class="tip">
+      Hər şeyi dinamik etməyin. Cəmi iki-üç sabit blok varsa, onları sadəcə açıq yazmaq daha oxunaqlıdır.
+      Dinamik bloklar konfiqurasiyanı gücləndirir, amma eyni zamanda oxumağı və debug etməyi çətinləşdirir — plan çıxışında blokun haradan gəldiyini görmək asan olmur.
+    </div>
+  </div>
+
+  <p class="section-title">4 · Yekun</p>
+  <div class="card">
+    <h2>Yadda saxla</h2>
+    <ul>
+      <li><strong>Şərti ifadə</strong> <code>condition ? doğru : yanlış</code> formasındadır; hər iki qol eyni tipdə olmalıdır.</li>
+      <li><strong>count = şərt ? 1 : 0</strong> — resursun yaradılıb-yaradılmayacağını idarə etməyin ən sadə yoludur.</li>
+      <li><strong>for ifadələri</strong> siyahı (<code>[for ...]</code>) və ya map (<code>{for ... =&gt; ...}</code>) qaytarır — teq, ad və CIDR hesablamaları üçün əvəzsizdir.</li>
+      <li><strong>count indeksə, for_each açara bağlıdır:</strong> ortadan element silinməsi vacibdirsə, <code>for_each</code> seçin.</li>
+      <li><strong>dynamic bloklar</strong> resurs daxilində iç-içə blokları generasiya edir — təkrarçılığı azaldır, amma yalnız blok sayı həqiqətən dəyişkən olanda işlədin.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="05-modullar-workspace.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Modullar və Workspace-lər</div></a>
+    <a href="07-test-debug.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Test və Debug</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

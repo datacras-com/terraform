@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test və Debug · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 7</div>
+  <h1>Test və Debug</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Terraform kodu sadəcə mətn deyil — o, canlı serverləri, verilənlər bazalarını və şəbəkələri idarə edir. Ona görə də səhv bir sətir birbaşa infrastruktura dəyir. Bu fəsildə konfiqurasiyanı prod-a çıxarmazdan əvvəl yoxlamağın yollarını — <code>validate</code>, <code>plan</code>, sandbox mühitində sınaq və Terratest ilə avtomatlaşdırılmış test — və nəsə səhv gedəndə problemi tapmaq üçün debug üsullarını öyrənəcəyik.</div>
+
+  <p class="section-title">1 · Terraform-da testin əhəmiyyəti</p>
+  <div class="card">
+    <h2>Niyə test edirik?</h2>
+    <p>Terraform işlədiyi anda mücərrəd obyektlərlə deyil, faktiki bulud resursları ilə işləyir. Səhv yazılmış bir <code>cidr_block</code> şəbəkəni bağlaya bilər, unudulmuş bir <code>lifecycle</code> qaydası isə verilənlər bazasını silə bilər. Test bu səhvləri hələ kod mərhələsində — heç nə yaradılmamış — tutmaq üçündür.</p>
+
+    <h3>Testin üç səviyyəsi</h3>
+    <table>
+      <tr><th>Səviyyə</th><th>Nəyi yoxlayır</th><th>Tipik alət</th></tr>
+      <tr><td><strong>Unit test</strong></td><td>Ayrıca komponent — məsələn, bir modulun öz daxilində düzgün işləməsi</td><td><code>terraform validate</code>, <code>tflint</code></td></tr>
+      <tr><td><strong>Integration test</strong></td><td>Fərqli hissələrin bir-biri ilə düzgün əlaqəsi (VPC + EC2 + Security Group)</td><td>Terratest, <code>terraform plan</code></td></tr>
+      <tr><td><strong>Acceptance test</strong></td><td>Bütöv infrastrukturun ayağa qalxması və gözlənilən kimi işləməsi</td><td>Terratest, InSpec</td></tr>
+    </table>
+
+    <div class="note">Bu üç səviyyə bir-birini əvəz etmir, tamamlayır. <code>validate</code> ucuz və sürətlidir — hər commit-də işləyə bilər. Terratest isə əsl resurs yaradır, ona görə həm bahalı, həm də yavaşdır — adətən gündə bir dəfə və ya merge-dən əvvəl işlədilir.</div>
+  </div>
+
+  <p class="section-title">2 · terraform validate ilə unit test</p>
+  <div class="card">
+    <h2>Sintaksis və daxili uyğunluq yoxlaması</h2>
+    <p><code>terraform validate</code> konfiqurasiya fayllarının sintaksisinin düzgün olduğunu və daxilən bir-biri ilə uyğun gəldiyini yoxlayır. Bulud provider-inə heç bir sorğu göndərmir, resurs yaratmır və ya silmir.</p>
+
+<pre><code>terraform validate</code></pre>
+
+    <p>Konfiqurasiya düzgündürsə, nəticə belə olur:</p>
+
+<pre><code><span class="g">Success! The configuration is valid.</span></code></pre>
+
+    <p>Problem varsa, Terraform səhvin harada olduğunu göstərən mesaj qaytarır — çatışmayan arqument, tanınmayan resurs tipi, yanlış tip verilmiş dəyişən və s.</p>
+
+    <h3>Nəyi tutur, nəyi tutmur</h3>
+    <ul>
+      <li><strong>Tutur:</strong> yazı səhvləri, bağlanmamış mötərizələr, mövcud olmayan dəyişənə istinad, səhv atribut adı.</li>
+      <li><strong>Tutmur:</strong> AWS-də olmayan AMI ID, artıq tutulmuş S3 bucket adı, icazə çatışmazlığı — bunlar yalnız <code>plan</code> və ya <code>apply</code> zamanı üzə çıxır.</li>
+    </ul>
+
+    <div class="tip"><code>validate</code> işlətməzdən əvvəl <code>terraform init</code> icra edilməlidir — provider sxemləri olmadan Terraform atributların düzgünlüyünü yoxlaya bilməz. Formatlaşdırma üçün isə ayrıca <code>terraform fmt -check -recursive</code> əmri var; ikisini birlikdə CI-da işlətmək yaxşı vərdişdir.</div>
+  </div>
+
+  <p class="section-title">3 · terraform plan — dəyişiklikləri əvvəlcədən görmək</p>
+  <div class="card">
+    <h2>Tətbiq etmədən öncə baxış</h2>
+    <p><code>terraform plan</code> testin ən vacib addımıdır. O, mövcud state ilə arzu olunan vəziyyəti müqayisə edir və Terraform-un nə edəcəyini — hansı resursu yaradacağını, dəyişəcəyini və ya siləcəyini — əvvəlcədən göstərir.</p>
+
+<pre><code>terraform plan</code></pre>
+
+    <p>Nümunə nəticə:</p>
+
+<pre><code><span class="g">+ aws_instance.my_instance</span>
+      ami:           <span class="s">"ami-0c55b159cbfafe1f0"</span>
+      instance_type: <span class="s">"t2.micro"</span>
+      ...
+
+Plan: 1 to add, 0 to change, 0 to destroy.</code></pre>
+
+    <h3>Simvolların mənası</h3>
+    <table>
+      <tr><th>Simvol</th><th>Mənası</th><th>Diqqət səviyyəsi</th></tr>
+      <tr><td><code>+</code></td><td>Yeni resurs yaradılacaq</td><td>Adi</td></tr>
+      <tr><td><code>~</code></td><td>Mövcud resurs dəyişdiriləcək (yerində)</td><td>Orta — hansı atribut dəyişir, oxu</td></tr>
+      <tr><td><code>-</code></td><td>Resurs silinəcək</td><td>Yüksək</td></tr>
+      <tr><td><code>-/+</code></td><td>Resurs silinib yenidən yaradılacaq</td><td>Çox yüksək — data itkisi ola bilər</td></tr>
+    </table>
+
+    <div class="warn">Plan nəticəsində <code>-/+</code> (replace) görsəniz, dayanın və səbəbini araşdırın. Verilənlər bazası və ya disk üçün bu, məlumatın silinməsi deməkdir. Terraform hansı atributun dəyişməni məcbur etdiyini <code>forces replacement</code> qeydi ilə göstərir.</div>
+
+    <div class="tip">Planı fayla yazıb sonra tam eyni planı tətbiq etmək olar — CI/CD-də bu, plan ilə apply arasında heç nəyin dəyişmədiyinə zəmanət verir:
+<pre><code>terraform plan -out=tfplan
+terraform apply tfplan</code></pre></div>
+  </div>
+
+  <p class="section-title">4 · Sandbox mühitində apply ilə test</p>
+  <div class="card">
+    <h2>Kodun faktiki davranışını yoxlamaq</h2>
+    <p><code>plan</code> yalnız Terraform-un niyyətini göstərir. Resursun həqiqətən ayağa qalxıb-qalxmadığını, tətbiqin bağlantı qura bildiyini isə ancaq <code>apply</code> göstərir. Ona görə də dəyişiklikləri əvvəlcə ayrıca sandbox, dev və ya staging mühitində tətbiq edirik.</p>
+
+<pre><code>terraform apply</code></pre>
+
+    <p>Nümunə nəticə:</p>
+
+<pre><code>aws_instance.my_instance: Creating...
+aws_instance.my_instance: Creation complete after 30s [id=i-0abcd1234]
+
+<span class="g">Apply complete! Resources: 1 added, 0 changed, 0 destroyed.</span></code></pre>
+
+    <p>Sandbox-da hər şey gözlənildiyi kimi işləyirsə, eyni kodu prod mühitinə çıxarmaq olar. Mühitlərin ayrılması üçün workspace-lərdən və ya ayrı state fayllarından istifadə edin — 5-ci fəsildə baxdığımız kimi.</p>
+
+    <div class="warn">Sandbox mühiti prod-un kiçildilmiş surəti olmalıdır: eyni region, eyni provider versiyası, oxşar şəbəkə quruluşu. Fərqli quruluşda keçən test prod-da keçəcəyinə zəmanət vermir.</div>
+
+    <div class="tip">Test bitəndən sonra <code>terraform destroy</code> ilə sandbox resurslarını silin. Unudulmuş test resursları aylıq bulud xərcinin sakit artım mənbəyidir.</div>
+  </div>
+
+  <p class="section-title">5 · Terratest ilə avtomatlaşdırılmış test</p>
+  <div class="card">
+    <h2>Terratest nədir?</h2>
+    <p>Terratest — Go dilində yazılmış, Terraform kodu üçün avtomat test yazmağa imkan verən kitabxanadır. O, infrastrukturu qurur, yoxlamaları icra edir, sonra hər şeyi özü silir. Integration və acceptance testləri üçün ən çox işlədilən vasitədir.</p>
+
+    <p>Terratest ilə nə etmək olar:</p>
+    <ul>
+      <li>Go dilində Terraform kodunu yoxlayan test yazmaq.</li>
+      <li>İnfrastrukturu qurub üzərində faktiki yoxlamalar aparmaq — EC2 instansına ping atmaq, load balancer-in cavab verdiyini təsdiqləmək, portun açıq olduğunu yoxlamaq.</li>
+      <li>Test bitən kimi infrastrukturu avtomatik dağıtmaq.</li>
+    </ul>
+
+    <h3>Nümunə: EC2 instansının yoxlanması</h3>
+
+<pre><code><span class="k">package</span> test
+
+<span class="k">import</span> (
+  <span class="s">"testing"</span>
+  <span class="s">"github.com/gruntwork-io/terratest/modules/aws"</span>
+  <span class="s">"github.com/gruntwork-io/terratest/modules/terraform"</span>
+)
+
+<span class="k">func</span> TestTerraformEC2Instance(t *testing.T) {
+  terraformOptions := &amp;terraform.Options{
+    <span class="c">// Terraform kodunun yolu</span>
+    TerraformDir: <span class="s">"../examples/terraform-aws-ec2-instance"</span>,
+  }
+
+  <span class="c">// Test bitəndə resursları sil (defer — funksiyanın sonunda işləyir)</span>
+  <span class="k">defer</span> terraform.Destroy(t, terraformOptions)
+
+  <span class="c">// `terraform init` və `terraform apply` icra et</span>
+  terraform.InitAndApply(t, terraformOptions)
+
+  <span class="c">// Yeni yaradılmış instansın ID-sini output-dan götür</span>
+  instanceID := terraform.Output(t, terraformOptions, <span class="s">"instance_id"</span>)
+
+  <span class="c">// EC2 instansının işlədiyini təsdiqlə</span>
+  aws.AssertInstanceIsRunning(t, instanceID, <span class="s">"us-west-1"</span>)
+}</code></pre>
+
+    <p>Bu testdə Terraform əvvəlcə EC2 instansını qurur, sonra onun həqiqətən <em>running</em> vəziyyətində olduğu təsdiqlənir. Test bitən kimi <code>terraform destroy</code> avtomatik işə düşür.</p>
+
+    <div class="note"><code>defer terraform.Destroy(...)</code> sətrini <strong>apply-dan əvvəl</strong> yazmaq vacibdir. Go-da <code>defer</code> funksiyanın sonunda icra olunur — belə yazsanız, test ortada uğursuz olsa belə resurslar yenə silinəcək.</div>
+
+    <h3>Quraşdırma və işə salma</h3>
+    <p><strong>1. Go quraşdırın:</strong></p>
+<pre><code>brew install go                 <span class="c"># macOS</span>
+sudo apt-get install golang-go  <span class="c"># Ubuntu</span></code></pre>
+
+    <p><strong>2. Layihəni hazırlayın və Terratest-i əlavə edin:</strong></p>
+<pre><code>go mod init my_terraform_tests
+go get github.com/gruntwork-io/terratest/modules/terraform</code></pre>
+
+    <p><strong>3. Testləri işə salın:</strong></p>
+<pre><code>go test -v -timeout 30m</code></pre>
+
+    <div class="tip">Terratest testləri əsl bulud resursları yaradır, ona görə Go-nun standart 10 dəqiqəlik limiti tez-tez çatmır. <code>-timeout 30m</code> kimi açıq limit vermək demək olar ki, həmişə lazımdır.</div>
+  </div>
+
+  <p class="section-title">6 · Debug — problemi tapmaq</p>
+  <div class="card">
+    <h2>a. Debug loglarını aktivləşdirmək</h2>
+    <p>Terraform <code>TF_LOG</code> mühit dəyişəni vasitəsilə ətraflı log yazır. <code>DEBUG</code> səviyyəsi hər addımı, o cümlədən provider-ə göndərilən API sorğularını göstərir.</p>
+
+<pre><code><span class="k">export</span> TF_LOG=DEBUG
+terraform apply</code></pre>
+
+    <p>Log səviyyələri: <code>TRACE</code> (ən ətraflı), <code>DEBUG</code>, <code>INFO</code>, <code>WARN</code>, <code>ERROR</code>. Logu ekran əvəzinə fayla yönləndirmək daha rahatdır:</p>
+
+<pre><code><span class="k">export</span> TF_LOG=DEBUG
+<span class="k">export</span> TF_LOG_PATH=./terraform-debug.log
+terraform apply</code></pre>
+
+    <div class="warn">Debug logunda provider-ə göndərilən sorğuların məzmunu görünür — orada parol, token və digər həssas dəyərlər ola bilər. Log faylını heç vaxt repository-yə commit etməyin və başqası ilə paylaşmadan əvvəl təmizləyin.</div>
+
+    <h2>b. State-ə baxmaq</h2>
+    <p>Terraform gözlənilməz davranırsa, ilk baxılacaq yer state faylıdır. O, Terraform-un infrastruktur haqqında "bildiyi" hər şeyi saxlayır.</p>
+
+<pre><code>terraform show                    <span class="c"># state-in tam məzmunu</span>
+terraform state list              <span class="c"># idarə olunan resursların siyahısı</span>
+terraform state show aws_instance.my_instance   <span class="c"># bir resursun detalları</span></code></pre>
+
+    <p>Resurs state-də yoxdursa, Terraform onu yenidən yaratmağa çalışacaq. Əksinə, silinmiş resurs hələ də state-də qalıbsa, plan gözlənilməz nəticə verəcək.</p>
+
+    <h2>c. Asılılıqları debug etmək</h2>
+    <p>Terraform resurslar arasındakı asılılıqları özü müəyyən edir və düzgün sıra ilə işə salır. Sıra ilə bağlı şübhəniz varsa, asılılıq qrafını görüntüləyin:</p>
+
+<pre><code>terraform graph | dot -Tsvg &gt; graph.svg</code></pre>
+
+    <p>Bu əmr resurslar arasındakı əlaqələrin qrafik təsvirini yaradır — hansı resursun hansından asılı olduğunu vizual görmək sıra problemlərini tapmağı asanlaşdırır.</p>
+
+    <div class="note"><code>dot</code> əmri Graphviz paketinin bir hissəsidir: <code>brew install graphviz</code> və ya <code>sudo apt-get install graphviz</code>.</div>
+  </div>
+
+  <p class="section-title">7 · Tez-tez rast gəlinən xətalar</p>
+  <div class="card">
+    <h2>Səhv və həlli</h2>
+
+    <h3>1. Resurs artıq mövcuddur</h3>
+    <p>Terraform yaratmağa çalışdığı resursun artıq buludda olduğunu bildirirsə, demək resurs faktiki mövcuddur, amma state-də yoxdur. Həll — onu state-ə import etmək:</p>
+
+<pre><code>terraform import &lt;resurs_ünvanı&gt; &lt;ID&gt;
+terraform import aws_instance.my_instance i-0abcd1234</code></pre>
+
+    <h3>2. Timeout xətaları</h3>
+    <p>Bəzi resurslar (RDS, EKS klasteri, NAT Gateway) yaranmaq üçün uzun vaxt tələb edir və Terraform-un standart gözləmə müddəti çatmaya bilər. Resurs daxilində <code>timeouts</code> bloku ilə limiti artırın:</p>
+
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+
+  <span class="c"># Yaratma əməliyyatı üçün 10 dəqiqəlik limit</span>
+  timeouts {
+    create = <span class="s">"10m"</span>
+    update = <span class="s">"10m"</span>
+    delete = <span class="s">"15m"</span>
+  }
+}</code></pre>
+
+    <h3>Xülasə cədvəli</h3>
+    <table>
+      <tr><th>Simptom</th><th>Ehtimal olunan səbəb</th><th>İlk addım</th></tr>
+      <tr><td>Resource already exists</td><td>Resurs buludda var, state-də yox</td><td><code>terraform import</code></td></tr>
+      <tr><td>Timeout</td><td>Resurs gec ayağa qalxır</td><td><code>timeouts</code> bloku əlavə et</td></tr>
+      <tr><td>Plan hər dəfə dəyişiklik göstərir</td><td>Provider dəyəri normallaşdırır (drift)</td><td><code>terraform state show</code> ilə faktiki dəyəri müqayisə et</td></tr>
+      <tr><td>Access Denied</td><td>IAM icazəsi çatmır</td><td><code>TF_LOG=DEBUG</code> ilə hansı API çağırışının rədd olunduğuna bax</td></tr>
+      <tr><td>Cycle error</td><td>Resurslar dairəvi asılılıq yaradır</td><td><code>terraform graph</code> ilə dövrəni tap</td></tr>
+      <tr><td>State lock</td><td>Başqa əməliyyat yarımçıq qalıb</td><td>Səbəbi yoxla, sonra <code>force-unlock</code></td></tr>
+    </table>
+
+    <div class="ai">AI köməkçisindən istifadə edərkən xəta mesajını olduğu kimi verin — kəsilmiş mətn əvəzinə tam log parçası. Bununla yanaşı, əlaqəli resurs blokunu da göstərin: səbəb çox vaxt xətanın özündə deyil, ona istinad edən konfiqurasiyadadır. Loqu paylaşmadan öncə token və parolları təmizləyin.</div>
+  </div>
+
+  <p class="section-title">8 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li><strong>Üç səviyyə:</strong> unit (<code>validate</code>), integration (<code>plan</code>, Terratest), acceptance (faktiki mühitdə yoxlama). Ucuzdan bahaya doğru irəliləyin.</li>
+      <li><strong>Plan oxumaq bacarıqdır:</strong> <code>+</code> yaradır, <code>~</code> dəyişir, <code>-</code> silir, <code>-/+</code> silib yenidən yaradır. Sonuncunu görəndə dayanıb səbəbi araşdırın.</li>
+      <li><strong>Sandbox mütləqdir:</strong> heç bir dəyişiklik dev və ya staging mühitindən keçmədən prod-a getməməlidir.</li>
+      <li><strong>Terratest resurs yaradır:</strong> <code>defer terraform.Destroy(...)</code> sətrini apply-dan əvvəl yazın ki, test uğursuz olsa belə təmizlik işləsin.</li>
+      <li><strong>Debug ardıcıllığı:</strong> əvvəlcə <code>terraform show</code> ilə state-ə bax, sonra <code>TF_LOG=DEBUG</code> ilə logu oxu, asılılıq şübhəsi varsa <code>terraform graph</code> işlət.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="06-sert-dovr-dinamik.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Şərtlər, Dövrlər və Dinamik Bloklar</div></a>
+    <a href="08-best-practice.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">Best Practice və Qabaqcıl Üsullar</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

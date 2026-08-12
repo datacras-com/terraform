@@ -1,392 +1,212 @@
 <!DOCTYPE html>
 <html lang="az">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terraform + GitHub Copilot — DPE-07</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terraform + GitHub Copilot · DPE-07</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green: #00A859; --green-dark: #00703A; --slate: #0F172A;
+    --bg: #F7F9F8; --line: #E2E8F0; --muted: #848688;
+  }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--slate); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      background: #F7F9F8;
-      color: #0F172A;
-      min-height: 100vh;
-    }
+  /* ── Başlıq ── */
+  header { background: var(--slate); padding: 12px 22px; display: flex; align-items: center; gap: 14px; border-bottom: 3px solid var(--green); flex-shrink: 0; }
+  header h1 { color: var(--green); font-size: 1.02rem; font-weight: 700; letter-spacing: -0.2px; white-space: nowrap; }
+  header .sub { color: var(--muted); font-size: 0.74rem; }
+  header .spacer { flex: 1; }
+  header button { background: #1a2820; border: 1px solid #1e3328; color: #E2E8F0; font-size: 0.74rem; font-weight: 600; padding: 6px 12px; border-radius: 7px; cursor: pointer; transition: background .15s; }
+  header button:hover { background: var(--green); border-color: var(--green); color: #fff; }
+  #burger { display: none; }
 
-    header {
-      background: #0F172A;
-      padding: 28px 48px 24px;
-      border-bottom: 3px solid #00A859;
-    }
+  /* ── Gövdə ── */
+  .layout { flex: 1; display: flex; min-height: 0; }
 
-    header h1 {
-      color: #00A859;
-      font-size: 1.5rem;
-      font-weight: 700;
-      letter-spacing: -0.3px;
-    }
+  aside { width: 288px; flex-shrink: 0; background: white; border-right: 1px solid var(--line); overflow-y: auto; padding: 14px 0 24px; }
+  .group { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); padding: 14px 20px 7px; }
+  .group:first-child { padding-top: 4px; }
 
-    header p {
-      color: #848688;
-      font-size: 0.82rem;
-      margin-top: 5px;
-    }
+  .item { display: block; padding: 9px 20px 9px 18px; border-left: 3px solid transparent; cursor: pointer; text-decoration: none; color: inherit; transition: background .12s, border-color .12s; }
+  .item:hover { background: #F1F5F9; }
+  .item.active { background: #F0FAF4; border-left-color: var(--green); }
+  .item .t { font-size: 0.83rem; font-weight: 600; line-height: 1.35; }
+  .item.active .t { color: var(--green-dark); }
+  .item .d { font-size: 0.7rem; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+  .item .n { display: inline-block; font-size: 0.62rem; font-weight: 700; color: var(--green); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 2px; }
+  .item.bonus .n { color: #7E22CE; }
+  .item.bonus.active { background: #FAF5FF; border-left-color: #9333EA; }
+  .item.bonus.active .t { color: #7E22CE; }
+  .item.dis { opacity: .48; cursor: default; }
+  .item.dis:hover { background: transparent; }
+  .item.dis .soon { display: inline-block; font-size: 0.6rem; font-weight: 700; color: #B45309; background: #FFF8E1; border: 1px solid #FDE68A; border-radius: 6px; padding: 0 6px; margin-left: 6px; }
 
-    .badge {
-      display: inline-block;
-      background: #00A859;
-      color: white;
-      font-size: 0.68rem;
-      font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 10px;
-      margin-left: 8px;
-      vertical-align: middle;
-    }
+  main { flex: 1; position: relative; background: #fff; min-width: 0; }
+  iframe { width: 100%; height: 100%; border: 0; display: block; }
 
-    main {
-      max-width: 860px;
-      margin: 36px auto;
-      padding: 0 24px;
-    }
+  /* boş vəziyyət */
+  #welcome { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; background: var(--bg); }
+  #welcome .logo { display: flex; align-items: center; gap: 12px; }
+  #welcome h2 { font-size: 1.5rem; margin-top: 16px; }
+  #welcome p { color: #475569; font-size: 0.9rem; margin-top: 8px; max-width: 480px; line-height: 1.6; }
+  #welcome .hint { margin-top: 20px; background: white; border: 1px solid var(--line); border-left: 4px solid var(--green); padding: 12px 18px; border-radius: 0 8px 8px 0; font-size: 0.84rem; color: #334155; }
 
-    .intro {
-      background: white;
-      border: 1px solid #E2E8F0;
-      border-left: 4px solid #00A859;
-      padding: 16px 20px;
-      border-radius: 0 8px 8px 0;
-      margin-bottom: 32px;
-      font-size: 0.875rem;
-      color: #334155;
-      line-height: 1.6;
-    }
+  /* naviqasiya (alt zolaq) */
+  .navbar { position: absolute; bottom: 14px; right: 18px; display: flex; gap: 8px; z-index: 5; }
+  .navbar button { background: rgba(15,23,42,0.86); color: #fff; border: 0; border-radius: 8px; padding: 7px 13px; font-size: 0.76rem; font-weight: 600; cursor: pointer; backdrop-filter: blur(3px); }
+  .navbar button:hover { background: var(--green); }
+  .navbar button:disabled { opacity: .35; cursor: default; }
 
-    .section-title {
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.2px;
-      color: #848688;
-      margin-bottom: 14px;
-    }
+  @media (max-width: 860px) {
+    #burger { display: inline-block; }
+    aside { position: absolute; z-index: 20; top: 0; bottom: 0; left: 0; transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 30px rgba(0,0,0,.15); }
+    aside.open { transform: none; }
+    .layout { position: relative; }
+  }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-      gap: 14px;
-      margin-bottom: 40px;
-    }
-
-    .card {
-      background: white;
-      border: 1px solid #E2E8F0;
-      border-radius: 10px;
-      padding: 18px 20px;
-      text-decoration: none;
-      color: inherit;
-      display: block;
-      transition: border-color 0.15s, box-shadow 0.15s;
-      position: relative;
-    }
-
-    .card:hover {
-      border-color: #00A859;
-      box-shadow: 0 2px 12px rgba(0,168,89,0.12);
-    }
-
-    .card-num {
-      font-size: 0.7rem;
-      font-weight: 700;
-      color: #00A859;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 6px;
-    }
-
-    .card-title {
-      font-size: 0.92rem;
-      font-weight: 700;
-      color: #0F172A;
-      margin-bottom: 8px;
-      line-height: 1.3;
-    }
-
-    .card-topics {
-      font-size: 0.72rem;
-      color: #848688;
-      line-height: 1.6;
-    }
-
-    .card-topics span {
-      display: inline-block;
-      background: #F0FAF4;
-      border: 1px solid #C3E4D0;
-      color: #00703A;
-      padding: 1px 6px;
-      border-radius: 4px;
-      margin: 2px 2px 0 0;
-      font-size: 0.67rem;
-    }
-
-    .card-topics span.bonus {
-      background: #F3E8FF;
-      border-color: #D8B4FE;
-      color: #7E22CE;
-    }
-
-    .card-topics span.free {
-      background: #EFF6FF;
-      border-color: #BFDBFE;
-      color: #1D4ED8;
-    }
-
-    .card-topics span.warn {
-      background: #FFF8E1;
-      border-color: #FDE68A;
-      color: #B45309;
-    }
-
-    footer {
-      text-align: center;
-      padding: 24px;
-      color: #848688;
-      font-size: 0.75rem;
-      border-top: 1px solid #E2E8F0;
-      margin-top: 20px;
-    }
-  </style>
+  /* ── Şifrə qapısı ── */
+  #gate { position: fixed; inset: 0; z-index: 9999; background: var(--slate); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #gate .cap { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--green); margin-bottom: 12px; }
+  #gate .ttl { font-size: 28px; font-weight: 700; color: #f8fafc; }
+  #gate .sub2 { font-size: 14px; color: #64748b; margin-top: 8px; }
+  #gate .box { width: 100%; max-width: 320px; margin-top: 30px; }
+  #gate input { width: 100%; padding: 14px 16px; background: #1a2820; border: 1px solid #1e3328; border-radius: 10px; color: #f1f5f9; font-size: 16px; outline: none; }
+  #gate input:focus { border-color: var(--green); }
+  #gate .err { color: #f87171; font-size: 13px; margin-top: 8px; text-align: center; display: none; }
+  #gate button { width: 100%; margin-top: 12px; padding: 14px; background: var(--green); border: 0; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
+  #gate button:hover { background: var(--green-dark); }
+</style>
 </head>
 <body>
 
 <header>
-  <h1>Terraform + GitHub Copilot <span class="badge">DPE-07</span></h1>
-  <p>Data Platform &amp; Engineering Bootcamp · 2 Dərs × 3 saat · Azərbaycan dilində</p>
+  <button id="burger" onclick="document.querySelector('aside').classList.toggle('open')">☰</button>
+  <h1>Terraform + GitHub Copilot</h1>
+  <span class="sub">DPE-07 · Data Platform &amp; Engineering Bootcamp</span>
+  <span class="spacer"></span>
+  <button onclick="openNew()">Yeni pəncərədə aç ↗</button>
 </header>
 
-<main>
-  <div class="intro">
-    Bu modul <strong>Infrastructure as Code</strong> anlayışını Terraform ilə öyrədir və bütün prosesi
-    <strong>GitHub Copilot</strong> ilə sürətləndirməyi göstərir — kod yazmaqdan modul qurmağa, commit mesajından
-    <code>.gitignore</code>-a qədər. Praktika iki mühitdə aparılır: hər tələbənin <span style="color:#1D4ED8; font-weight:600;">öz AWS account-u</span> (free tier)
-    və <span style="color:#7E22CE; font-weight:600;">on-prem standalone ESXi</span>.
-    Kursun ana xətti: <strong>Copilot sürətləndirir, <code>terraform validate</code> yoxlayır</strong> — AI-a kor-koranə etibar yox, yoxlanılan sürət.
+<div class="layout">
+  <aside id="side"></aside>
+
+  <main>
+    <div id="welcome">
+      <div class="logo">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="#7B42BC" xmlns="http://www.w3.org/2000/svg"><path d="M1.44 0v7.575l6.561 3.79V3.787zm21.12 4.227l-6.561 3.791v7.574l6.56-3.787zM8.72 4.23v7.575l6.561 3.787V8.018zm0 8.405v7.575L15.28 24v-7.578z"/></svg>
+        <span style="font-size:2.4rem;">🤖</span>
+      </div>
+      <h2>Kurs Materialları</h2>
+      <p>Bütün materiallar bir yerdə. Soldakı siyahı <b>öyrənmə ardıcıllığı ilə</b> düzülüb:
+         Pre-work-dən başlayın, fəsilləri sıra ilə keçin, bonus sənədlərə lazım olduqca müraciət edin.</p>
+      <div class="hint">💡 Slaydlarda naviqasiya: <b>← →</b> ox düymələri · tam ekran: <b>F</b> · icmal: <b>Esc</b></div>
+    </div>
+    <iframe id="frame" style="display:none" title="Kurs məzmunu"></iframe>
+    <div class="navbar">
+      <button id="prev" onclick="step(-1)">← Əvvəlki</button>
+      <button id="next" onclick="step(1)">Növbəti →</button>
+    </div>
+  </main>
+</div>
+
+<!-- Şifrə qapısı -->
+<div id="gate">
+  <div style="text-align:center;">
+    <div class="cap">DPE-07 · Terraform + Copilot Modulu</div>
+    <div class="ttl">🔒 Giriş</div>
+    <div class="sub2">Davam etmək üçün şifrəni daxil edin</div>
   </div>
-
-  <a href="kurs.html" style="display:block; background:#0F172A; border-radius:10px; padding:16px 22px; margin-bottom:30px; text-decoration:none; border-left:4px solid #00A859;">
-    <div style="color:#00A859; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:1.2px;">Tövsiyə olunan giriş</div>
-    <div style="color:#f8fafc; font-size:1.05rem; font-weight:700; margin-top:4px;">📚 Vahid Kurs Səhifəsi — hamısı bir yerdə →</div>
-    <div style="color:#94a3b8; font-size:0.8rem; margin-top:4px;">Bütün fəsillər, bonus sənədlər və hazırlıq materialı tək naviqasiyalı səhifədə</div>
-  </a>
-
-  <p class="section-title">Hazırlıq</p>
-
-  <div class="grid">
-    <a class="card" href="prework/prework.html">
-      <div class="card-num">Pre-work · Dərsdən əvvəl</div>
-      <div class="card-title">Mühitin Quraşdırılması</div>
-      <div class="card-topics">
-        <span>GitHub + Copilot</span>
-        <span>VS Code</span>
-        <span>Terraform</span>
-        <span>AWS account</span>
-        <span class="warn">Budget alert</span>
-      </div>
-    </a>
-  </div>
-
-  <p class="section-title">Dərs 1 — Fəsillər</p>
-
-  <div class="grid">
-
-    <a class="card" href="slides/fesil-1-github-copilot.html">
-      <div class="card-num">Fəsil 01</div>
-      <div class="card-title">GitHub Copilot-a Giriş</div>
-      <div class="card-topics">
-        <span>Copilot nədir</span>
-        <span>Necə işləyir</span>
-        <span>Planlar</span>
-        <span class="bonus">Claude Code</span>
-        <span class="warn">GenAI limitləri</span>
-      </div>
-    </a>
-
-    <a class="card" href="slides/fesil-2-terraform.html">
-      <div class="card-num">Fəsil 02</div>
-      <div class="card-title">HashiCorp Terraform-a Giriş</div>
-      <div class="card-topics">
-        <span>IaC faydaları</span>
-        <span>Komponentlər</span>
-        <span>init/plan/apply/destroy</span>
-        <span class="free">Demo: əl ilə VPC</span>
-      </div>
-    </a>
-
-    <a class="card" href="slides/fesil-3-muhit-qurulusu.html">
-      <div class="card-num">Fəsil 03</div>
-      <div class="card-title">Mühitin Qurulması</div>
-      <div class="card-topics">
-        <span>Copilot + VS Code</span>
-        <span>Terraform install</span>
-        <span>AWS credentials</span>
-        <span class="bonus">On-prem baxış</span>
-        <span class="warn">Yekun checklist</span>
-      </div>
-    </a>
-
-    <a class="card" href="slides/fesil-4-terraform-development.html">
-      <div class="card-num">Fəsil 04</div>
-      <div class="card-title">Terraform Development — Copilot ilə</div>
-      <div class="card-topics">
-        <span>Scaffold</span>
-        <span>VPC + 6 subnet</span>
-        <span>Comment-driven</span>
-        <span>/fix /explain /doc /tests</span>
-        <span>Modul yaratmaq</span>
-        <span class="free">16 resurs, 0 ₼</span>
-      </div>
-    </a>
-
-  </div>
-
-  <p class="section-title">Dərs 2 — Fəsillər <span style="font-weight:400; text-transform:none; letter-spacing:0;">(hazırlanır)</span></p>
-
-  <div class="grid">
-    <!-- Fəsil 4-7 kartları transkriptlər hazır olduqca əlavə olunacaq -->
-  </div>
-
-  <p class="section-title">Bonus materiallar</p>
-
-  <div class="grid">
-    <a class="card" href="bonus/vpc-konsol-sual-cavab.html">
-      <div class="card-num">Bonus · Fəsil 4</div>
-      <div class="card-title">AWS Konsolunda Nə Görürəm?</div>
-      <div class="card-topics">
-        <span>15 sual-cavab</span>
-        <span>Main route table sirri</span>
-        <span>ID vs Name</span>
-        <span class="free">Drift nədir</span>
-      </div>
-    </a>
-
-    <a class="card" href="bonus/server-temelleri-aws-vcenter.html">
-      <div class="card-num">Bonus · Təməllər</div>
-      <div class="card-title">Server Qurmazdan Əvvəl Nə Lazımdır?</div>
-      <div class="card-topics">
-        <span>Compute/Şəbəkə/Storage</span>
-        <span>AWS vs vCenter</span>
-        <span>Data source rolu</span>
-        <span class="bonus">Terraform-dan əvvəlki dünya</span>
-      </div>
-    </a>
-
-    <a class="card" href="bonus/terraform-dili-soraq.html">
-      <div class="card-num">Bonus · Soraq</div>
-      <div class="card-title">Terraform Dili — Soraq Kitabçası</div>
-      <div class="card-topics">
-        <span>variables + tfvars</span>
-        <span>outputs · locals</span>
-        <span>Tiplər · istinadlar</span>
-        <span>count/for_each</span>
-        <span class="free">Əmrlər cib vərəqəsi</span>
-      </div>
-    </a>
-
-    <a class="card" href="bonus/modullar-sade-dilde.html">
-      <div class="card-num">Bonus · Modullar</div>
-      <div class="card-title">Modullar — Sadə Dildə</div>
-      <div class="card-topics">
-        <span>Resept analogiyası</span>
-        <span>3 qapı: in/main/out</span>
-        <span class="bonus">Copilot ilə 7 addım</span>
-        <span class="warn">3 tələ</span>
-      </div>
-    </a>
-  </div>
-
-  <p class="section-title">Laboratoriya işləri</p>
-
-  <div class="grid">
-
-    <a class="card" href="labs/aws/">
-      <div class="card-num">Lab · AWS</div>
-      <div class="card-title">AWS Free Tier Tapşırıqları</div>
-      <div class="card-topics">
-        <span>S3 data-lake</span>
-        <span>VPC</span>
-        <span>for_each</span>
-        <span class="free">Öz account-unda</span>
-      </div>
-    </a>
-
-    <a class="card" href="labs/esxi/">
-      <div class="card-num">Lab · ESXi</div>
-      <div class="card-title">On-prem ESXi Tapşırıqları</div>
-      <div class="card-topics">
-        <span>esxi provider</span>
-        <span>SSH auth</span>
-        <span>VM yaratmaq</span>
-        <span class="bonus">Multi-provider</span>
-      </div>
-    </a>
-
-  </div>
-</main>
-
-<footer>
-  Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform + GitHub Copilot Modulu
-</footer>
-
-<!-- Password Gate -->
-<div id="gate" style="
-  position:fixed;inset:0;z-index:9999;
-  background:#0F172A;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-">
-  <div style="text-align:center;margin-bottom:32px;">
-    <div style="font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#00A859;margin-bottom:12px;">DPE-07 · Terraform + Copilot Modulu</div>
-    <div style="font-size:28px;font-weight:700;color:#f8fafc;">🔒 Giriş</div>
-    <div style="font-size:14px;color:#64748b;margin-top:8px;">Davam etmək üçün şifrəni daxil edin</div>
-  </div>
-  <div style="width:100%;max-width:320px;">
-    <input id="gate-input" type="password" placeholder="Şifrə" style="
-      width:100%;padding:14px 16px;
-      background:#1a2820;border:1px solid #1e3328;border-radius:10px;
-      color:#f1f5f9;font-size:16px;outline:none;
-      transition:border-color .2s;
-    "
-    onkeydown="if(event.key==='Enter')checkPass()"
-    onfocus="this.style.borderColor='#00A859'"
-    onblur="this.style.borderColor='#1e3328'"
-    />
-    <div id="gate-err" style="color:#f87171;font-size:13px;margin-top:8px;text-align:center;display:none;">Şifrə yanlışdır</div>
-    <button onclick="checkPass()" style="
-      width:100%;margin-top:12px;padding:14px;
-      background:#00A859;border:none;border-radius:10px;
-      color:#fff;font-size:15px;font-weight:700;cursor:pointer;
-      transition:background .2s;
-    "
-    onmouseover="this.style.background='#00703A'"
-    onmouseout="this.style.background='#00A859'"
-    >Daxil ol →</button>
+  <div class="box">
+    <input id="gate-input" type="password" placeholder="Şifrə" onkeydown="if(event.key==='Enter')checkPass()">
+    <div class="err" id="gate-err">Şifrə yanlışdır</div>
+    <button onclick="checkPass()">Daxil ol →</button>
   </div>
 </div>
 
 <script>
-  const PASS = 'DataCras2026!';
-  if(sessionStorage.getItem('dpe07-auth')==='1') document.getElementById('gate').style.display='none';
-  function checkPass(){
-    if(document.getElementById('gate-input').value===PASS){
-      sessionStorage.setItem('dpe07-auth','1');
-      document.getElementById('gate').style.display='none';
-    } else {
-      document.getElementById('gate-err').style.display='block';
-      document.getElementById('gate-input').value='';
-      document.getElementById('gate-input').focus();
-    }
+const MENU = [
+  { group: "① Hazırlıq — dərsdən əvvəl" },
+  { n: "Pre-work", t: "Mühitin Quraşdırılması", d: "GitHub · VS Code · Terraform · AWS · budget alert", u: "prework/prework.html" },
+
+  { group: "② Kurs fəsilləri — ardıcıl gedin" },
+  { n: "Fəsil 01", t: "GitHub Copilot-a Giriş", d: "Copilot nədir · Claude Code · GenAI limitləri", u: "slides/fesil-1-github-copilot.html" },
+  { n: "Fəsil 02", t: "HashiCorp Terraform-a Giriş", d: "IaC · komponentlər · init/plan/apply · əl ilə demo", u: "slides/fesil-2-terraform.html" },
+  { n: "Fəsil 03", t: "Mühitin Qurulması", d: "Abunəlik · VS Code · install · AWS credentials", u: "slides/fesil-3-muhit-qurulusu.html" },
+  { n: "Fəsil 04", t: "Terraform Development — Copilot ilə", d: "Scaffold · VPC layihəsi · /fix /explain /doc · modullar", u: "slides/fesil-4-terraform-development.html" },
+  { n: "Fəsil 05", t: "GitHub Copilot Chat", d: "Chat yolları · kod blokları · inline · kontekst", u: "slides/fesil-5-copilot-chat.html" },
+  { n: "Fəsil 06", t: "Kodu İdarə Etmək — Git + Copilot", d: ".gitignore generasiyası · commit mesajları", dis: 1 },
+  { n: "Fəsil 07", t: "Mühitin Təmizlənməsi", d: "terraform destroy · konsol yoxlaması — ritual", dis: 1 },
+
+  { group: "③ Dərinləşmə" },
+  { n: "Kitab", t: "Terraform Kitabı — Tam Bələdçi", d: "Əsaslardan qabaqcıl mövzulara · fəsil-fəsil", u: "terraform-kitab/index.html" },
+
+  { group: "④ Bonus sənədlər — oxu ardıcıllığı ilə" },
+  { n: "Bonus 1", t: "Terraform Dili — Soraq Kitabçası", d: "variables · outputs · tfvars · locals · tiplər", u: "bonus/terraform-dili-soraq.html", b: 1 },
+  { n: "Bonus 2", t: "data vs resource", d: "Yaratmaq vs tapmaq · həyat dövrü · qərar ağacı", u: "bonus/data-vs-resource.html", b: 1 },
+  { n: "Bonus 3", t: "Modullar — Sadə Dildə", d: "Resept analogiyası · Copilot ilə 7 addım", u: "bonus/modullar-sade-dilde.html", b: 1 },
+  { n: "Bonus 4", t: "AWS Konsolunda Nə Görürəm?", d: "apply-dan sonra 15 sual-cavab", u: "bonus/vpc-konsol-sual-cavab.html", b: 1 },
+  { n: "Bonus 5", t: "Server Qurmazdan Əvvəl Nə Lazımdır?", d: "Compute · şəbəkə · storage · AWS vs vCenter", u: "bonus/server-temelleri-aws-vcenter.html", b: 1 },
+  { n: "Bonus 6", t: "vCenter-də Terraform ilə VM", d: "On-prem memarlıq · data source-lar · plan", u: "bonus/vcenter-vm-plani.html", b: 1 },
+  { n: "Yekun", t: "Terraform Müsahibə Sualları", d: "46 sual-cavab · 11 bölmə · 🟢🟡🔴 səviyyələr", u: "bonus/musahibe-suallari.html", b: 1 },
+];
+
+const items = MENU.filter(x => x.u);
+let cur = -1;
+
+const side = document.getElementById("side");
+MENU.forEach(m => {
+  if (m.group) {
+    const g = document.createElement("div");
+    g.className = "group"; g.textContent = m.group; side.appendChild(g); return;
   }
+  const a = document.createElement("a");
+  a.className = "item" + (m.b ? " bonus" : "") + (m.dis ? " dis" : "");
+  const soon = m.dis ? '<span class="soon">hazırlanır</span>' : "";
+  a.innerHTML = `<span class="n">${m.n}</span>${soon}<div class="t">${m.t}</div><div class="d">${m.d}</div>`;
+  if (!m.dis) a.onclick = () => open_(items.indexOf(m));
+  m._el = a; side.appendChild(a);
+});
+
+function open_(i) {
+  if (i < 0 || i >= items.length) return;
+  cur = i;
+  const m = items[i];
+  document.getElementById("welcome").style.display = "none";
+  const f = document.getElementById("frame");
+  f.style.display = "block"; f.src = m.u;
+  items.forEach(x => x._el.classList.remove("active"));
+  m._el.classList.add("active");
+  document.getElementById("prev").disabled = (i === 0);
+  document.getElementById("next").disabled = (i === items.length - 1);
+  document.querySelector("aside").classList.remove("open");
+  location.hash = "m" + i;
+}
+function step(d) { open_(cur + d); }
+function openNew() { if (cur >= 0) window.open(items[cur].u, "_blank"); }
+
+// Enter/çıxış
+function checkPass() {
+  if (document.getElementById("gate-input").value === "DataCras2026!") {
+    sessionStorage.setItem("dpe07-auth", "1");
+    document.getElementById("gate").style.display = "none";
+    start();
+  } else {
+    document.getElementById("gate-err").style.display = "block";
+    document.getElementById("gate-input").value = "";
+    document.getElementById("gate-input").focus();
+  }
+}
+function start() {
+  const h = location.hash.match(/^#m(\d+)$/);
+  if (h) open_(+h[1]);
+}
+if (sessionStorage.getItem("dpe07-auth") === "1") {
+  document.getElementById("gate").style.display = "none";
+  start();
+}
+document.getElementById("prev").disabled = true;
+document.getElementById("next").disabled = true;
 </script>
 </body>
 </html>

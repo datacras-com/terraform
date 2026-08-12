@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Uyğunluq (Compliance) və Audit · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 14</div>
+  <h1>Uyğunluq (Compliance) və Audit</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Infrastruktur yalnız işləməklə kifayətlənmir — o həm də təhlükəsizlik standartlarına, qanunvericiliyə və şirkətdaxili qaydalara cavab verməlidir. Bu fəsildə uyğunluq qaydalarını kod şəklində yazmağı (Policy as Code), Sentinel və OPA ilə yoxlamaları CI/CD-yə qoşmağı, həssas məlumatı düzgün idarə etməyi və audit üçün log toplamağı öyrənirik.</div>
+
+  <p class="section-title">1 · IaC-də uyğunluq nə deməkdir?</p>
+  <div class="card">
+    <h2>Üç fərqli təbəqə</h2>
+    <p>Infrastructure as Code-da uyğunluq (compliance) yerləşdirdiyin infrastrukturun müəyyən təhlükəsizlik və tənzimləyici tələblərə cavab verməsi deməkdir. Praktikada üç təbəqəyə bölünür:</p>
+    <table>
+      <tr><th>Növ</th><th>Nəyi tələb edir</th><th>Terraform-da necə görünür</th></tr>
+      <tr><td>Təhlükəsizlik uyğunluğu</td><td>Şəbəkə bölgüsü, şifrələmə, giriş nəzarəti</td><td>Şifrələnməmiş bucket-i qadağan edən policy</td></tr>
+      <tr><td>Tənzimləyici uyğunluq</td><td>GDPR, HIPAA, SOC 2, PCI DSS</td><td>Log saxlama müddəti, data yerləşmə regionu</td></tr>
+      <tr><td>Əməliyyat uyğunluğu</td><td>Daxili qaydalar: resource idarəetməsi, xərc nəzarəti</td><td>Məcburi tag-lar, icazə verilən instance ölçüləri</td></tr>
+    </table>
+    <p>Terraform bu qaydaları kod şəklində tətbiq etmək üçün mexanizmlər verir — yəni uyğunluq yoxlaması sənədə yazılmış tövsiyə deyil, pipeline-ı dayandıran avtomatik nəzarətə çevrilir.</p>
+  </div>
+
+  <p class="section-title">2 · Əsas uyğunluq problemləri</p>
+  <div class="card">
+    <h2>a. Konfiqurasiya sürüşməsi (drift)</h2>
+    <p>Drift infrastrukturun faktiki vəziyyəti Terraform kodunda təsvir olunan arzuolunan vəziyyətdən ayrıldıqda yaranır. Adətən səbəb sadədir: kimsə konsoldan əl ilə dəyişiklik edir. Nəticədə kod “şifrələmə açıqdır” deyir, gerçəklikdə isə kimsə onu söndürüb — bu artıq uyğunluq pozuntusudur.</p>
+    <h2>b. Giriş nəzarəti və secret idarəetməsi</h2>
+    <p>Həssas resource-lara (baza, S3 bucket) girişin məhdudlaşdırılması və secret-lərin (API açarı, kredensial) təhlükəsiz saxlanması demək olar ki, bütün standartların əsas tələbidir.</p>
+    <h2>c. Tənzimləyici hesabatlıq</h2>
+    <p>Bir çox tənzimləmə təşkilatdan uyğunluğu sübut edən hesabat tələb edir. Infrastruktur dəyişikliklərini əl ilə izləyib hesabat hazırlamaq praktiki olaraq mümkün deyil — avtomatlaşdırma məcburiyyətdir.</p>
+    <div class="note"><strong>Drift-ə qarşı sadə vərdiş:</strong> CI-da gündəlik cədvəl üzrə <code>terraform plan -detailed-exitcode</code> işə sal. Çıxış kodu <code>2</code> olarsa, deməli infrastrukturda kodla üst-üstə düşməyən nəsə var — komandaya bildiriş göndər.</div>
+  </div>
+
+  <p class="section-title">3 · Policy as Code (PaC)</p>
+  <div class="card">
+    <h2>Anlayış</h2>
+    <p>Policy as Code — uyğunluq qaydalarının eynilə infrastruktur kimi kod şəklində yazılması metodologiyasıdır. Bu yanaşma ilə qaydalar bütün infrastruktura avtomatik tətbiq olunur, versiyalanır və baxışdan keçir. Terraform bir neçə PaC aləti ilə inteqrasiya olunur.</p>
+
+    <h2>a. Sentinel</h2>
+    <p>Sentinel — HashiCorp-un Terraform ilə işləmək üçün hazırladığı Policy as Code çərçivəsidir. Yazdığın policy-lər <strong>dəyişiklik tətbiq olunmazdan əvvəl</strong> plan üzərində qiymətləndirilir.</p>
+    <p><strong>Nümunə: AWS instance ölçüsünü məhdudlaşdıran Sentinel policy</strong></p>
+<pre><code><span class="k">import</span> <span class="s">"tfplan/v2"</span> <span class="k">as</span> tfplan
+
+<span class="c"># yalnız t2.micro və t2.small ölçülərinə icazə verilir</span>
+main = <span class="k">rule</span> {
+  <span class="k">all</span> tfplan.resource_changes <span class="k">as</span> _, rc {
+    rc.change.after.instance_type <span class="k">is</span> <span class="s">"t2.micro"</span> <span class="k">or</span>
+    rc.change.after.instance_type <span class="k">is</span> <span class="s">"t2.small"</span>
+  }
+}</code></pre>
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li>Policy yalnız <code>t2.micro</code> və <code>t2.small</code> tiplərinə icazə verir.</li>
+      <li>Daha böyük instance yerləşdirmək cəhdi olarsa, dəyişiklik bloklanır.</li>
+    </ul>
+    <p>Sentinel ilə geniş dairədə tələblər tətbiq etmək olar: resource tiplərinin məhdudlaşdırılmasından tutmuş tag standartlarına və məcburi şifrələməyə qədər.</p>
+
+    <h2>b. Open Policy Agent (OPA)</h2>
+    <p>OPA — açıq mənbəli, ümumi təyinatlı policy mühərrikidir. Sentinel-dən fərqli olaraq yalnız Terraform ilə məhdudlaşmır: Kubernetes, API gateway və digər sistemlərdə eyni dil (Rego) ilə işləyir.</p>
+    <p><strong>Nümunə: S3 bucket-lər üçün şifrələməni məcburi edən OPA policy</strong></p>
+<pre><code><span class="k">package</span> terraform.s3
+
+<span class="c"># şifrələməsi olmayan hər S3 bucket rədd edilir</span>
+<span class="k">deny</span>[msg] {
+  input.resource_type == <span class="s">"aws_s3_bucket"</span>
+  input.config.server_side_encryption_configuration == <span class="k">null</span>
+  msg = <span class="s">"S3 bucket-də şifrələmə aktiv olmalıdır."</span>
+}</code></pre>
+    <p>Bu policy server-side şifrələməsi olmayan istənilən S3 bucket-i rədd edir və beləliklə təhlükəsizlik standartına riayəti təmin edir.</p>
+    <table>
+      <tr><th>Meyar</th><th>Sentinel</th><th>OPA</th></tr>
+      <tr><td>Sahibi / lisenziya</td><td>HashiCorp, kommersiya (TFC/TFE)</td><td>CNCF, açıq mənbə</td></tr>
+      <tr><td>Dil</td><td>Sentinel</td><td>Rego</td></tr>
+      <tr><td>İstifadə sahəsi</td><td>Əsasən Terraform</td><td>Terraform, Kubernetes, API-lər</td></tr>
+      <tr><td>Terraform ilə bağ</td><td>Daxilə qurulub, plan-a birbaşa çıxış</td><td>Plan JSON-a çevrilib verilir</td></tr>
+      <tr><td>Tipik yer</td><td>Terraform Cloud/Enterprise</td><td>CI/CD addımı, öz-özünə idarə olunan</td></tr>
+    </table>
+    <div class="tip"><strong>Seçim məsləhəti:</strong> Terraform Cloud/Enterprise işlədirsənsə, Sentinel daha az konfiqurasiya tələb edir. Öz CI/CD-nizdə qalırsınızsa və ya artıq Kubernetes-də Gatekeeper işlədirsinizsə, OPA ilə tək policy bazasında qalmaq daha səmərəlidir.</div>
+  </div>
+
+  <p class="section-title">4 · Uyğunluq yoxlamalarının CI/CD-də avtomatlaşdırılması</p>
+  <div class="card">
+    <h2>GitHub Actions + OPA</h2>
+    <p>Uyğunluq yoxlamalarını pipeline-a qoşmaqla infrastruktur dəyişikliklərinin tətbiqdən <em>əvvəl</em> qaydalarla üzləşdirilməsini təmin edirsən.</p>
+<pre><code><span class="k">name</span>: Terraform Compliance Check
+
+<span class="k">on</span>:
+  pull_request:
+    branches: [main]
+
+<span class="k">jobs</span>:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - <span class="k">name</span>: <span class="s">"Repo-nu yüklə"</span>
+        uses: actions/checkout@v2
+
+      - <span class="k">name</span>: <span class="s">"Terraform quraşdır"</span>
+        uses: hashicorp/setup-terraform@v1
+
+      <span class="c"># plan-ı JSON-a çevir ki, OPA onu oxuya bilsin</span>
+      - <span class="k">name</span>: <span class="s">"Plan hazırla"</span>
+        run: |
+          terraform init
+          terraform plan -out=tfplan
+          terraform show -json tfplan > terraform-plan.json
+
+      - <span class="k">name</span>: <span class="s">"OPA policy yoxlaması"</span>
+        run: opa eval --data policy.rego --input terraform-plan.json --format pretty</code></pre>
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li>Pipeline Terraform plan çıxışını OPA policy-ləri ilə qiymətləndirir.</li>
+      <li>Qayda pozularsa (məsələn, şifrələməsiz S3 bucket), pipeline uğursuz olur və dəyişiklik tətbiq edilmir.</li>
+    </ul>
+    <div class="warn"><strong>Tez-tez buraxılan səhv:</strong> policy yoxlaması <code>apply</code>-dan sonra qoyulur və ya nəticəsi pipeline-ı dayandırmır (“warning” rejimi). Belə qurğu heç nə qorumur — yoxlama <code>apply</code>-dan əvvəl olmalı və uğursuzluq job-u dayandırmalıdır.</div>
+  </div>
+
+  <p class="section-title">5 · Həssas məlumat və secret-lərin idarəsi</p>
+  <div class="card">
+    <h2>AWS Secrets Manager nümunəsi</h2>
+    <p>API açarları, baza kredensialları və giriş token-ləri uyğunluğun ən çox yoxlanan nöqtəsidir. Terraform bir sıra secret idarəetmə alətləri ilə inteqrasiya olunur ki, həssas məlumat təhlükəsiz saxlanılsın və icra anında oxunsun.</p>
+<pre><code><span class="k">data</span> <span class="s">"aws_secretsmanager_secret"</span> <span class="s">"db_password"</span> {
+  name = <span class="s">"my-database-password"</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_db_instance"</span> <span class="s">"my_db"</span> {
+  allocated_storage = 20
+  engine            = <span class="s">"mysql"</span>
+  instance_class    = <span class="s">"db.t2.micro"</span>
+  <span class="c"># parol konfiqurasiyada saxlanmır, icra anında gətirilir</span>
+  password = data.aws_secretsmanager_secret.db_password.secret_string
+}</code></pre>
+    <p>Beləliklə parol Terraform konfiqurasiyasında qalmır — o, hər icrada secret store-dan təhlükəsiz oxunur.</p>
+    <div class="note"><strong>Əlavə qat:</strong> secret-i tam çıxarmaq mümkün olduqda daha yaxşısını et — parolu ümumiyyətlə Terraform-a vermə. AWS RDS-də <code>manage_master_user_password = true</code> ilə parolu birbaşa RDS Secrets Manager-ə həvalə edə bilərsən; onda parol nə kodda, nə də state-də görünür.</div>
+  </div>
+
+  <p class="section-title">6 · Uyğunluq üçün loglama və audit</p>
+  <div class="card">
+    <h2>a. AWS CloudTrail</h2>
+    <p>Tənzimləyici tələbləri qarşılamaq üçün təşkilatlar infrastruktur dəyişikliklərinin və həssas resource-lara girişin ətraflı log-unu saxlamalıdır. CloudTrail Terraform-un etdiyi bütün API sorğularını qeydə alır: kim tətbiq edib, hansı resource dəyişib.</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_cloudtrail"</span> <span class="s">"my_trail"</span> {
+  name                          = <span class="s">"my-trail"</span>
+  s3_bucket_name                = aws_s3_bucket.my_bucket.id
+  include_global_service_events = <span class="k">true</span>   <span class="c"># IAM kimi qlobal xidmətlər də daxil</span>
+  is_multi_region_trail         = <span class="k">true</span>   <span class="c"># bütün region-ları əhatə edir</span>
+  enable_logging                = <span class="k">true</span>
+}</code></pre>
+    <p>Bu konfiqurasiya bütün Terraform fəaliyyətinin loglanmasını təmin edir və SOC 2, PCI DSS kimi standartların tələb etdiyi audit izini yaradır.</p>
+
+    <h2>b. Azure Monitor</h2>
+    <p>Azure tərəfində eyni rolu Azure Monitor diaqnostika parametrləri oynayır:</p>
+<pre><code><span class="k">resource</span> <span class="s">"azurerm_monitor_diagnostic_setting"</span> <span class="s">"example"</span> {
+  name               = <span class="s">"example-setting"</span>
+  target_resource_id = azurerm_storage_account.example.id
+
+  log {
+    category = <span class="s">"Administrative"</span>   <span class="c"># yaratma, silmə kimi inzibati əməliyyatlar</span>
+    enabled  = <span class="k">true</span>
+
+    retention_policy {
+      enabled = <span class="k">true</span>
+      days    = 365            <span class="c"># log-lar 1 il saxlanır</span>
+    }
+  }
+}</code></pre>
+    <p>Burada bütün inzibati əməliyyatlar (resource yaratma, silmə) loglanır və 365 gün saxlanır.</p>
+    <div class="warn"><strong>Audit log-un öz təhlükəsizliyi:</strong> log saxlanan bucket-ə silmə icazəsi olan hər kəs izləri yox edə bilər. CloudTrail bucket-ində <em>object lock</em> və ya ən azı MFA delete tələb et, log bucket-ini isə ayrı account-da saxla.</div>
+  </div>
+
+  <p class="section-title">7 · Uyğunluq üçün ən yaxşı praktikalar</p>
+  <div class="card">
+    <h2>a. Fasiləsiz uyğunluq</h2>
+    <p>Uyğunluq yoxlamaları infrastruktur həyat dövrünün <strong>hər</strong> mərhələsinə qoşulmalıdır. CI/CD-də və mövcud infrastrukturun müntəzəm skan edilməsində avtomatik yoxlamalar işlədikcə qaydaya uyğun olmayan resource-un mühitə düşmə riski azalır.</p>
+    <h2>b. Policy as Code-u komandalar arasında standartlaşdır</h2>
+    <p>Sentinel və ya OPA policy-lərini ayrı repo-da saxla, bütün komandalar oradan istifadə etsin. Qaydalar da kod kimi baxışdan keçməli və tələblər dəyişdikcə yenilənməlidir.</p>
+    <h2>c. Müntəzəm audit və monitorinq</h2>
+    <p>CloudTrail, Azure Monitor və ya Google Cloud Logging ilə mütəmadi audit qur. Müntəzəm yoxlama həm standartlara riayəti təsdiqləyir, həm də icazəsiz dəyişikliyi erkən üzə çıxarır.</p>
+    <div class="ai"><strong>Copilot ilə iş:</strong> Rego sintaksisi ilk baxışda yad gəlir. Copilot-dan “bu Terraform plan JSON strukturuna əsasən bütün <code>aws_s3_bucket</code> resource-larında versiyalamanın açıq olmasını tələb edən deny qaydası yaz” tipli konkret göstərişlə başla, sonra qaydanı <code>opa test</code> ilə həm müsbət, həm mənfi nümunə üzərində yoxla — model çox vaxt sahə adlarını (<code>resource_changes</code>, <code>change.after</code>) qarışdırır.</div>
+  </div>
+
+  <p class="section-title">8 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>Uyğunluq üç təbəqədən ibarətdir: təhlükəsizlik, tənzimləyici tələblər və daxili əməliyyat qaydaları — hər üçü kodla tətbiq oluna bilər.</li>
+      <li>Policy as Code qaydanı sənəddən pipeline-a köçürür: Sentinel Terraform Cloud üçün, OPA/Rego isə çoxplatformalı mühitlər üçün daha uyğundur.</li>
+      <li>Policy yoxlaması <code>apply</code>-dan <strong>əvvəl</strong> işləməli və pozuntu halında pipeline-ı dayandırmalıdır.</li>
+      <li>Secret-ləri Secrets Manager / Key Vault-dan oxu; mümkün olan yerdə parolu ümumiyyətlə Terraform-dan kənarda saxla.</li>
+      <li>CloudTrail və Azure Monitor audit izini yaradır — log saxlama müddətini standartın tələb etdiyi qədər təyin et və log-ların özünü silinmədən qoru.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="13-production-security.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Prod Mühitində Terraform və Təhlükəsizlik</div></a>
+    <a href="15-dr-ha-2.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">DR/HA — Praktik Nümunələr</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

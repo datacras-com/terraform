@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dəyişənlər, Output-lar və Data Source-lar · Terraform Kitabı · DPE-07</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="crumb"><a href="index.html">← Terraform Kitabı</a> · Fəsil 3</div>
+  <h1>Dəyişənlər, Output-lar və Data Source-lar</h1>
+  <p>DPE-07 · Data Platform &amp; Engineering Bootcamp</p>
+</header>
+<main>
+  <div class="intro">Bu üç mexanizm Terraform konfiqurasiyasını sabit mətn yığınından çevik və təkrar istifadəyə yararlı koda çevirir. Dəyişənlər dəyərləri kənardan alır, output-lar infrastrukturdan məlumat çıxarır, data source-lar isə Terraform-un idarə etmədiyi mövcud resursları konfiqurasiyaya bağlayır.</div>
+
+  <p class="section-title">1 · Terraform-da dəyişənlər</p>
+  <div class="card">
+    <h2>Dəyişənlər nə üçündür</h2>
+    <p>Terraform-da dəyişənlər konfiqurasiya fayllarını parametrləşdirməyə imkan verir. Dəyərləri koda sabit yazmaq (hardcode) əvəzinə dəyişən təyin edib onu konfiqurasiyanın hər yerində işlədirsən. Bu, kodu daha modul quruluşlu və təkrar istifadəyə yararlı edir — xüsusilə development, staging və prod kimi müxtəlif mühitlərlə işlədikdə.</p>
+  </div>
+
+  <div class="card">
+    <h2>a. Dəyişənlərin təyini</h2>
+    <p>Terraform-da dəyişənlər <code>variable</code> bloku ilə təyin olunur. Hər dəyişən aşağıdakı atributlara malik ola bilər:</p>
+    <table>
+      <tr><th>Atribut</th><th>Təyinatı</th></tr>
+      <tr><td><code>default</code></td><td>Dəyişənin standart dəyəri</td></tr>
+      <tr><td><code>type</code></td><td>Dəyişənin tipi (məsələn <code>string</code>, <code>list</code>, <code>map</code>)</td></tr>
+      <tr><td><code>description</code></td><td>Dəyişənin nəyi ifadə etdiyini izah edən qısa təsvir</td></tr>
+      <tr><td><code>sensitive</code></td><td>Dəyişəni həssas kimi işarələyir — dəyəri log-larda və output-larda görünmür</td></tr>
+    </table>
+    <p>AWS regionu üçün sadə string dəyişəninin təyini:</p>
+<pre><code><span class="k">variable</span> <span class="s">"aws_region"</span> {
+  default     = <span class="s">"us-west-1"</span>
+  description = <span class="s">"Resursların yerləşdiriləcəyi AWS regionu."</span>
+}</code></pre>
+    <p>Burada <code>aws_region</code> adlı dəyişən təyin olunub, standart dəyəri <code>"us-west-1"</code>-dir. <code>description</code> dəyişənin nə üçün olduğunu izah edir.</p>
+    <div class="tip"><strong>Məsləhət.</strong> <code>description</code>-u həmişə yaz. Konfiqurasiyanı altı ay sonra oxuyan (bəlkə də sən özün olacaqsan) hər dəyişənin niyə mövcud olduğunu bilməlidir. Bu təsvirlər həm də avtomatik sənədləşdirmə alətləri tərəfindən oxunur.</div>
+  </div>
+
+  <div class="card">
+    <h2>b. Dəyişən tipləri</h2>
+    <p>Terraform bir neçə dəyişən tipini dəstəkləyir:</p>
+    <ul>
+      <li><strong>String</strong> — tək dəyər, məsələn region və ya instance tipi.</li>
+      <li><strong>List</strong> — dəyərlər toplusu. Bir neçə instance, subnet və s. təyin etmək üçün faydalıdır.</li>
+      <li><strong>Map</strong> — açar-dəyər cütlərindən ibarət toplu. Konfiqurasiya seçimlərini nizamlı formada göstərmək üçün əlverişlidir.</li>
+      <li><strong>Boolean</strong> — <code>true</code> və ya <code>false</code> dəyəri.</li>
+    </ul>
+    <p>List dəyişəni nümunəsi:</p>
+<pre><code><span class="k">variable</span> <span class="s">"instance_types"</span> {
+  type    = list(string)
+  default = [<span class="s">"t2.micro"</span>, <span class="s">"t2.small"</span>, <span class="s">"t2.medium"</span>]
+}</code></pre>
+    <p>Map dəyişəni nümunəsi:</p>
+<pre><code><span class="k">variable</span> <span class="s">"ami_ids"</span> {
+  type = map(string)
+
+  default = {
+    us-east-1 = <span class="s">"ami-123456"</span>
+    us-west-1 = <span class="s">"ami-654321"</span>
+  }
+}</code></pre>
+    <p>Bu tiplər sayəsində daxil olan dəyərlərə uyğunlaşan dinamik konfiqurasiyalar qura bilərsən.</p>
+  </div>
+
+  <div class="card">
+    <h2>c. Dəyişənlərin konfiqurasiyada işlədilməsi</h2>
+    <p>Dəyişənləri təyin etdikdən sonra onlara resurs təsvirlərində <code>var.</code> prefiksi ilə müraciət edirsən:</p>
+<pre><code><span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = var.ami_ids[var.aws_region]
+  instance_type = var.instance_type
+}</code></pre>
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li><code>var.ami_ids[var.aws_region]</code> regiondan asılı olaraq uyğun AMI-ni dinamik şəkildə seçir.</li>
+      <li><code>var.instance_type</code> instance tipini dəyişəndən götürür.</li>
+    </ul>
+    <div class="note"><strong>Qeyd.</strong> Map-dən açar üzrə seçim (<code>var.ami_ids[var.aws_region]</code>) regiondan asılı dəyərləri idarə etməyin ən təmiz üsuludur. Açar map-də yoxdursa, Terraform <code>plan</code> mərhələsində səhv verəcək — bu, səhvin erkən tutulması deməkdir.</div>
+  </div>
+
+  <div class="card">
+    <h2>d. Dəyişənlərə dəyər ötürmək</h2>
+    <p>Terraform-da dəyişənlərə dəyər vermək üçün bir neçə yol var.</p>
+
+    <h3>1. Standart dəyərlər</h3>
+    <p>Heç bir dəyər verilmirsə, Terraform <code>variable</code> blokunda göstərilmiş <code>default</code> dəyərindən istifadə edir.</p>
+
+    <h3>2. Əmr sətri bayraqları</h3>
+    <p>Dəyişənləri birbaşa <code>terraform apply</code> və ya <code>terraform plan</code> əmrinə <code>-var</code> bayrağı ilə ötürə bilərsən:</p>
+<pre><code>terraform apply -var="aws_region=us-east-1"</code></pre>
+
+    <h3>3. Mühit dəyişənləri</h3>
+    <p>Dəyişənləri mühit dəyişənləri vasitəsilə də təyin etmək olar. Məsələn, AWS regionunu ötürmək üçün:</p>
+<pre><code>export TF_VAR_aws_region=us-east-1
+terraform apply</code></pre>
+
+    <h3>4. .tfvars faylları</h3>
+    <p>Dəyişənləri ayrıca <code>.tfvars</code> faylında təyin edib icra zamanı Terraform-a ötürmək mümkündür. <code>terraform.tfvars</code> faylı nümunəsi:</p>
+<pre><code>aws_region    = <span class="s">"us-east-1"</span>
+instance_type = <span class="s">"t2.medium"</span></code></pre>
+    <p>Terraform-u belə işlədirsən:</p>
+<pre><code>terraform apply -var-file="terraform.tfvars"</code></pre>
+
+    <table>
+      <tr><th>Üsul</th><th>Nə vaxt uyğundur</th></tr>
+      <tr><td><code>default</code></td><td>Ağlabatan standart dəyər olduqda</td></tr>
+      <tr><td><code>-var</code></td><td>Birdəfəlik, sınaq məqsədli dəyişikliklər</td></tr>
+      <tr><td><code>TF_VAR_*</code></td><td>CI/CD pipeline-ları və secret idarəsi</td></tr>
+      <tr><td><code>.tfvars</code></td><td>Hər mühit üçün ayrıca dəyər dəsti (<code>dev.tfvars</code>, <code>prod.tfvars</code>)</td></tr>
+    </table>
+    <div class="tip"><strong>Məsləhət.</strong> <code>terraform.tfvars</code> adlı fayl avtomatik oxunur — onu <code>-var-file</code> ilə göstərməyə ehtiyac yoxdur. Mühitlərə görə ayrılmış fayllar üçün isə (<code>prod.tfvars</code>) bayraq mütləqdir. Həssas dəyərlər olan <code>.tfvars</code> fayllarını <code>.gitignore</code>-a əlavə et.</div>
+  </div>
+
+  <div class="card">
+    <h2>e. Həssas dəyişənlər</h2>
+    <p>Bəzən API açarı, verilənlər bazası parolu və ya SSH xüsusi açarı kimi həssas məlumatları ötürmək lazım gəlir. Terraform dəyişəni <code>sensitive</code> kimi işarələməyə imkan verir — belə dəyişənlərin dəyəri log-larda və output-larda göstərilmir.</p>
+<pre><code><span class="k">variable</span> <span class="s">"db_password"</span> {
+  type      = string
+  sensitive = <span class="k">true</span>
+}</code></pre>
+    <p><code>sensitive</code> bayrağı <code>true</code> olduqda Terraform <code>db_password</code> dəyərinin <code>terraform apply</code> və ya <code>terraform plan</code> zamanı ekrana çıxmamasını təmin edir.</p>
+    <div class="warn"><strong>Xəbərdarlıq.</strong> <code>sensitive = true</code> yalnız ekranda görünməni bağlayır — dəyər yenə də state faylında açıq mətnlə saxlanılır. Ona görə state-in şifrələnməsi (S3-də encryption) və girişin məhdudlaşdırılması vacibdir.</div>
+  </div>
+
+  <p class="section-title">2 · Terraform-da output-lar</p>
+  <div class="card">
+    <h2>Output-lar nə üçündür</h2>
+    <p>Output-lar infrastrukturdan məlumat çıxarmağa və onu paylaşmağa imkan verir. Onlar resurslar qurulduqdan sonra vacib məlumatları göstərmək və ya Terraform module-ları arasında dəyər ötürmək üçün işlədilir.</p>
+  </div>
+
+  <div class="card">
+    <h2>a. Output-un təyini</h2>
+    <p>Output <code>output</code> bloku ilə təyin olunur. Hər <code>output</code> bloku aşağıdakıları saxlaya bilər:</p>
+    <ul>
+      <li><code>value</code> — çıxarılacaq dəyər (adətən hansısa resursun atributunun nəticəsi).</li>
+      <li><code>description</code> — output-un qısa təsviri (məcburi deyil).</li>
+      <li><code>sensitive</code> — <code>true</code> olduqda dəyər Terraform log-larında göstərilmir.</li>
+    </ul>
+    <p>Nümunə: EC2 instance-ın public IP ünvanı üçün output:</p>
+<pre><code><span class="k">output</span> <span class="s">"instance_public_ip"</span> {
+  value       = aws_instance.my_instance.public_ip
+  description = <span class="s">"EC2 instance-ın public IP ünvanı."</span>
+}</code></pre>
+    <p>Bu nümunədə <code>value</code> <code>aws_instance</code> resursundan <code>public_ip</code> atributunu götürür, <code>description</code> isə bu output-un nəyi ifadə etdiyini izah edir.</p>
+  </div>
+
+  <div class="card">
+    <h2>b. Output-lara baxmaq</h2>
+    <p>Konfiqurasiya tətbiq olunduqdan sonra output-lara <code>terraform output</code> əmri ilə baxa bilərsən:</p>
+<pre><code>terraform output</code></pre>
+    <p>Bu əmr konfiqurasiyada təyin olunmuş bütün output-ları göstərir. Yalnız bir output-a baxmaq üçün:</p>
+<pre><code>terraform output instance_public_ip</code></pre>
+    <p>Bu, sadəcə <code>instance_public_ip</code> output-unun dəyərini göstərəcək.</p>
+    <div class="note"><strong>Qeyd.</strong> <code>terraform output -json</code> nəticəni maşın oxuyan formatda verir — CI/CD skriptlərində və <code>jq</code> ilə emal zamanı çox faydalıdır.</div>
+  </div>
+
+  <div class="card">
+    <h2>c. Output-ların module-lar arasında işlədilməsi</h2>
+    <p>Output-ların ən güclü işlədilmə sahələrindən biri Terraform module-ları arasında məlumat paylaşmaqdır. Bir neçə module ilə işləyəndə bir module-un output-u digər module üçün giriş dəyəri (input) ola bilər.</p>
+<pre><code><span class="c"># Module 1: VPC module-u</span>
+<span class="k">module</span> <span class="s">"vpc"</span> {
+  source = <span class="s">"./modules/vpc"</span>
+}
+
+<span class="c"># Module 2: VPC module-undan asılı olan EC2 module-u</span>
+<span class="k">module</span> <span class="s">"ec2"</span> {
+  source     = <span class="s">"./modules/ec2"</span>
+  vpc_id     = module.vpc.vpc_id <span class="c"># VPC module-unun output-u işlədilir</span>
+  subnet_ids = module.vpc.subnet_ids
+}</code></pre>
+    <p>Burada <code>vpc</code> module-undan gələn <code>vpc_id</code> və <code>subnet_ids</code> dəyərləri <code>ec2</code> module-una giriş kimi ötürülür.</p>
+    <div class="tip"><strong>Məsləhət.</strong> Module-un output-ları onun ictimai interfeysidir. Yalnız kənardan həqiqətən lazım olan dəyərləri output kimi aç — hər atributu açmaq module-un daxili quruluşunu istifadəçilərə "sızdırır" və sonradan dəyişməyi çətinləşdirir.</div>
+  </div>
+
+  <div class="card">
+    <h2>d. Həssas output-lar</h2>
+    <p>Həssas dəyişənlərdə olduğu kimi, Terraform output-ları da <code>sensitive</code> kimi işarələməyə imkan verir. Bu, parol və ya xüsusi açar kimi məlumatların output log-larında görünməməsini təmin edir.</p>
+<pre><code><span class="k">output</span> <span class="s">"db_password"</span> {
+  value     = aws_db_instance.my_db.password
+  sensitive = <span class="k">true</span>
+}</code></pre>
+  </div>
+
+  <p class="section-title">3 · Data source-lar</p>
+  <div class="card">
+    <h2>a. Data source nədir</h2>
+    <p>Data source-lar Terraform-dan kənarda mövcud olan infrastruktura sorğu göndərməyə və ona istinad etməyə imkan verir. Bu, başqa komanda, layihə və ya proses tərəfindən idarə olunan, lakin sənin konfiqurasiyana daxil edilməli olan resurslarla işləyəndə faydalıdır.</p>
+    <p>Data source mövcud infrastruktur komponentləri haqqında məlumat oxumağa imkan verir. Data source-lar <strong>yeni resurs yaratmır</strong> — onlar sadəcə artıq mövcud olan resurslar haqqında məlumat gətirir.</p>
+    <p>Məsələn, mövcud AWS VPC-nin ID-sini əldə edib öz konfiqurasiyanda işlətmək istəyə bilərsən.</p>
+  </div>
+
+  <div class="card">
+    <h2>b. Data source-ların işlədilməsi</h2>
+    <p>Data source işlətmək üçün konfiqurasiyada <code>data</code> bloku yazılır. <code>data</code> blokunun formatı <code>resource</code> blokuna bənzəyir, lakin o, resurs yaratmır və ya dəyişmir — yalnız məlumat gətirir.</p>
+    <p>Nümunə: mövcud AWS VPC-yə sorğu:</p>
+<pre><code><span class="k">data</span> <span class="s">"aws_vpc"</span> <span class="s">"default"</span> {
+  default = <span class="k">true</span>
+}
+
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+  subnet_id     = data.aws_vpc.default.id <span class="c"># VPC data source-undan istifadə</span>
+}</code></pre>
+    <p>Bu nümunədə <code>data</code> bloku AWS-dəki standart VPC-yə sorğu göndərir və onun ID-sini götürür. Həmin ID sonra eyni VPC daxilində EC2 instance yaratmaq üçün işlədilir.</p>
+    <div class="note"><strong>Qeyd.</strong> Data source-a müraciət <code>data.</code> prefiksi ilə başlayır: <code>data.&lt;TİP&gt;.&lt;AD&gt;.&lt;ATRIBUT&gt;</code>. Resurslarda isə prefiks olmur: <code>aws_instance.my_instance.id</code>.</div>
+  </div>
+
+  <div class="card">
+    <h2>c. Geniş yayılmış data source-lar</h2>
+    <p>Terraform müxtəlif provider-lər üzrə çoxlu data source təqdim edir. Ən çox işlədilənlərdən bəziləri:</p>
+    <table>
+      <tr><th>Provider</th><th>Data source</th><th>Nə gətirir</th></tr>
+      <tr><td rowspan="3">AWS</td><td><code>aws_vpc</code></td><td>Mövcud VPC haqqında məlumat</td></tr>
+      <tr><td><code>aws_ami</code></td><td>Əlçatan AMI-lər (Amazon Machine Image) üzrə sorğu</td></tr>
+      <tr><td><code>aws_subnet</code></td><td>Mövcud subnet haqqında məlumat</td></tr>
+      <tr><td rowspan="2">Azure</td><td><code>azurerm_resource_group</code></td><td>Mövcud resource group haqqında məlumat</td></tr>
+      <tr><td><code>azurerm_virtual_network</code></td><td>Mövcud virtual şəbəkə haqqında məlumat</td></tr>
+      <tr><td rowspan="2">Google Cloud</td><td><code>google_compute_network</code></td><td>Mövcud Google Cloud şəbəkəsi haqqında məlumat</td></tr>
+      <tr><td><code>google_compute_subnetwork</code></td><td>Mövcud subnetwork haqqında məlumat</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>d. Nümunə: çoxbuludlu mühitdə data source-lar</h2>
+    <p>İndi daha mürəkkəb bir nümunəyə baxaq — həm AWS-dən, həm də Google Cloud-dan data source-lar vasitəsilə məlumat götürürük.</p>
+<pre><code><span class="c"># Data source: standart AWS VPC-yə sorğu</span>
+<span class="k">data</span> <span class="s">"aws_vpc"</span> <span class="s">"default"</span> {
+  default = <span class="k">true</span>
+}
+
+<span class="c"># Data source: Google Cloud storage bucket-inə sorğu</span>
+<span class="k">data</span> <span class="s">"google_storage_bucket"</span> <span class="s">"my_bucket"</span> {
+  name = <span class="s">"my-existing-bucket"</span>
+}
+
+<span class="c"># AWS VPC məlumatı ilə EC2 instance yaradılması</span>
+<span class="k">resource</span> <span class="s">"aws_instance"</span> <span class="s">"my_instance"</span> {
+  ami           = <span class="s">"ami-0c55b159cbfafe1f0"</span>
+  instance_type = <span class="s">"t2.micro"</span>
+  subnet_id     = data.aws_vpc.default.subnets[0].id
+}
+
+<span class="c"># Google Cloud bucket məlumatının output-da işlədilməsi</span>
+<span class="k">output</span> <span class="s">"bucket_location"</span> {
+  value = data.google_storage_bucket.my_bucket.location
+}</code></pre>
+    <p>Bu nümunədə:</p>
+    <ul>
+      <li>Standart AWS VPC <code>aws_vpc</code> data source-u ilə sorğulanır və subnet ID-si EC2 instance yaratmaq üçün işlədilir.</li>
+      <li>Mövcud Google Cloud Storage bucket-i <code>google_storage_bucket</code> data source-u ilə sorğulanır və onun yerləşdiyi region infrastruktur tətbiq olunduqdan sonra output kimi göstərilir.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>e. Data source-ların faydaları</h2>
+    <p>Data source-lar Terraform konfiqurasiyalarını daha dinamik və çevik etmək üçün son dərəcə faydalıdır:</p>
+    <ul>
+      <li><strong>Mövcud infrastruktura problemsiz qoşulma.</strong> Terraform-dan kənarda idarə olunan resurslarla işləməyə imkan verir — onları yenidən yaratmağa ehtiyac qalmır.</li>
+      <li><strong>Layihələr arası təkrar istifadə.</strong> Komandalar və ya layihələr arasında ortaq infrastruktur resurslarına birbaşa sahiblik etmədən istinad edə bilərsən.</li>
+      <li><strong>Təkrar resurs yaradılmasının qarşısını alır.</strong> Mövcud resursları sorğulamaqla infrastruktur komponentlərinin təsadüfən ikiləşməsindən qorunursan.</li>
+    </ul>
+    <div class="ai"><strong>Əlavə fikir.</strong> Data source-lar konfiqurasiyanı xarici vəziyyətə bağlayır. Sorğulanan resurs başqası tərəfindən silinsə və ya adı dəyişsə, sənin <code>plan</code>-ın sınacaq. Ona görə həssas asılılıqlarda dəqiq filtr işlət (məsələn tag üzrə) və nəyə güvəndiyini kod içində şərhlə qeyd et.</div>
+  </div>
+
+  <p class="section-title">4 · Yekun</p>
+  <div class="card">
+    <p>Bu fəsildə Terraform-da dəyişənlər, output-lar və data source-lar mövzularını nəzərdən keçirdik. Bunlar infrastruktur kodunu dinamik, təkrar istifadəyə yararlı və çevik etməyin əsas komponentləridir:</p>
+    <ul>
+      <li><strong>Dəyişənlər</strong> konfiqurasiyanı parametrləşdirir və mühitlər arasında çeviklik yaradır.</li>
+      <li><strong>Output-lar</strong> resurslar haqqında vacib məlumatı üzə çıxarır — bu məlumat başqa module-lara və ya sistemlərə ötürülə bilər.</li>
+      <li><strong>Data source-lar</strong> mövcud infrastrukturu sorğulamağa imkan verir və Terraform-u başqa komandaların, yaxud provider-lərin idarə etdiyi infrastruktur ilə birləşdirir.</li>
+    </ul>
+    <p>Növbəti fəsildə state idarəsi, remote state və backend-lər mövzusuna keçirik. Bunlar Terraform-un infrastrukturu komanda üzvləri və mühitlər arasında ardıcıl şəkildə idarə etməsi üçün həlledicidir.</p>
+  </div>
+
+  <p class="section-title">5 · Yadda saxla</p>
+  <div class="card">
+    <ul>
+      <li>Dəyişən <code>variable</code> bloku ilə təyin olunur, konfiqurasiyada <code>var.&lt;ad&gt;</code> ilə işlədilir; <code>type</code> və <code>description</code> yazmaq vərdiş olmalıdır.</li>
+      <li>Dəyər ötürməyin dörd yolu var: <code>default</code>, <code>-var</code>, <code>TF_VAR_*</code> mühit dəyişəni və <code>.tfvars</code> faylı.</li>
+      <li><code>sensitive = true</code> dəyəri ekrandan gizlədir, amma state faylından gizlətmir — state-i şifrələ.</li>
+      <li>Output-lar həm istifadəçiyə məlumat göstərir, həm də module-lar arasında dəyər ötürməyin əsas yoludur.</li>
+      <li>Data source-lar oxuyur, yaratmır: mövcud VPC, AMI, subnet kimi resursları konfiqurasiyaya bağlayır.</li>
+      <li>Data source-a müraciət <code>data.</code> prefiksi ilə, resursa müraciət isə prefiksiz olur.</li>
+    </ul>
+  </div>
+
+  <div class="pagenav">
+    <a href="02-provider-resurs.html"><div class="lbl">← Əvvəlki</div><div class="ttl">Provider-lər və Resurslar</div></a>
+    <a href="04-state-backend.html" class="right"><div class="lbl">Növbəti →</div><div class="ttl">State İdarəsi və Backend-lər</div></a>
+  </div>
+</main>
+<footer>Data Platform &amp; Engineering Bootcamp · DPE-07 · Terraform Kitabı · <a href="index.html">Mündəricat</a></footer>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bonus: Terraform Müsahibə Sualları · DPE-07</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #F7F9F8; color: #0F172A; min-height: 100vh; line-height: 1.6; }
+    header { background: #0F172A; padding: 28px 48px 24px; border-bottom: 3px solid #00A859; }
+    header h1 { color: #00A859; font-size: 1.45rem; font-weight: 700; letter-spacing: -0.3px; }
+    header p { color: #848688; font-size: 0.82rem; margin-top: 5px; }
+    .badge { display: inline-block; background: #9333EA; color: white; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+    main { max-width: 860px; margin: 36px auto; padding: 0 24px; }
+    .intro { background: white; border: 1px solid #E2E8F0; border-left: 4px solid #9333EA; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 28px; font-size: 0.875rem; color: #334155; }
+    .section-title { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #848688; margin: 34px 0 14px; }
+    .qa { background: white; border: 1px solid #E2E8F0; border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+    .q { background: #EFF6FF; border-left: 4px solid #3B82F6; padding: 11px 16px; font-weight: 700; font-size: 0.9rem; color: #1E3A5F; display: flex; align-items: baseline; gap: 8px; }
+    .q .lvl { flex-shrink: 0; font-size: 0.62rem; font-weight: 700; padding: 1px 8px; border-radius: 8px; white-space: nowrap; }
+    .l1 { background: #F0FAF4; border: 1px solid #C3E4D0; color: #00703A; }
+    .l2 { background: #FFF8E1; border: 1px solid #FDE68A; color: #B45309; }
+    .l3 { background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; }
+    .a { padding: 11px 16px 13px; font-size: 0.85rem; color: #334155; border-left: 4px solid #00A859; }
+    .a ul, .a ol { padding-left: 20px; margin: 6px 0; }
+    .a li { margin-bottom: 4px; }
+    code { background: #E8F5EE; color: #00703A; padding: 2px 6px; border-radius: 4px; font-size: 0.82em; border: 1px solid #C3E4D0; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    pre { background: #1E293B; color: #E2E8F0; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #00A859; font-size: 0.76rem; line-height: 1.5; margin: 8px 0; overflow-x: auto; color-scheme: dark; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    pre code { background: transparent; color: #E2E8F0; border: none; padding: 0; font-size: 1em; }
+    .toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .toc a { background: white; border: 1px solid #C3E4D0; border-radius: 6px; padding: 4px 12px; font-size: 0.76rem; text-decoration: none; color: #00703A; font-weight: 600; }
+    footer { text-align: center; padding: 24px; color: #848688; font-size: 0.75rem; border-top: 1px solid #E2E8F0; margin-top: 30px; }
+    a { color: #00A859; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Terraform Müsahibə Sualları <span class="badge">BONUS</span></h1>
+  <p>Terraform + Copilot Modulu · DPE-07 · 46 sual-cavab · Azərbaycan dilində · iş müsahibələrinə hazırlıq</p>
+</header>
+
+<main>
+
+  <div class="intro">
+    Bu sənəd — Terraform üzrə ən çox verilən <b>müsahibə suallarının</b> Azərbaycan dilində toplusudur.
+    Səviyyələr: <span class="lvl l1" style="font-size:0.7rem; padding:1px 8px; border-radius:8px;">🟢 başlanğıc</span> — kursda tam keçdiklərimiz ·
+    <span class="lvl l2" style="font-size:0.7rem; padding:1px 8px; border-radius:8px;">🟡 orta</span> — kursda toxunduqlarımız ·
+    <span class="lvl l3" style="font-size:0.7rem; padding:1px 8px; border-radius:8px;">🔴 irəli</span> — kursdan kənar, müsahibə üçün öyrənilməli.
+    Kursdakı slaydlar və <a href="terraform-dili-soraq.html">Soraq Kitabçası</a> ilə birlikdə istifadə et.
+    <div class="toc">
+      <a href="#esaslar">1·Əsaslar</a><a href="#axin">2·İş axını</a><a href="#resurs">3·Resurs/Provider/Data</a>
+      <a href="#deyisen">4·Dəyişənlər</a><a href="#state">5·State</a><a href="#modul">6·Modullar</a>
+      <a href="#coxaltma">7·count/for_each/lifecycle</a><a href="#muhit">8·Mühitlər/Komanda</a>
+      <a href="#secret">9·Secrets</a><a href="#prov">10·Provisioners</a><a href="#eko">11·Ekosistem</a>
+    </div>
+  </div>
+
+  <p class="section-title" id="esaslar">1 · Əsaslar</p>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Terraform nədir?</div>
+  <div class="a">HashiCorp-un açıq mənbəli <b>Infrastructure as Code</b> alətidir. İnfrastrukturun (VM-lər, şəbəkələr, storage…) <b>istənilən vəziyyətini</b> deklarativ dildə (HCL) təsvir edirsən, Terraform isə həmin vəziyyətə çatmaq üçün resursları yaradır, dəyişir və silir. Konfiqurasiya faylları versiya nəzarətində saxlanılır — dəyişikliklər izlənilə bilən və təkrarlana biləndir.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Infrastructure as Code (IaC) nədir?</div>
+  <div class="a">İnfrastrukturu əl prosesləri ilə deyil, <b>kodla</b> idarə etmək praktikasıdır. Kod istənilən vəziyyəti təyin edir; bu, versiya nəzarəti, komanda əməkdaşlığı və bütün infrastruktur həyat dövrünün avtomatlaşdırılmasını mümkün edir. "Konsolda klik" dövrünün əksidir: hər dəyişikliyin tarixçəsi, müəllifi və geri qaytarılma yolu olur.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Terraform-un Ansible/Chef/Puppet kimi alətlərdən fərqi nədir?</div>
+  <div class="a">Onlar <b>konfiqurasiya idarəetməsi</b> alətləridir — mövcud serverlərin <em>içini</em> qururlar (paketlər, fayllar, servislər). Terraform isə <b>infrastrukturun özünü</b> yaradır və idarə edir (provisioning) və platformadan asılı deyil (cloud-aqnostik). Rəqib deyil, tamamlayıcıdırlar: əvvəl Terraform serveri yaradır, sonra Ansible içini qurur.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Terraform necə quraşdırılır?</div>
+  <div class="a">Rəsmi saytdan OS-ə uyğun binary endirilir və <code>PATH</code>-a əlavə olunur; paket menecerləri daha rahatdır: macOS-da <code>brew install hashicorp/tap/terraform</code>, Ubuntu-da HashiCorp apt repo-su, Windows-da <code>winget install Hashicorp.Terraform</code>. Yoxlama: <code>terraform version</code>.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>HCL nədir və əsas sintaksis elementləri hansılardır?</div>
+  <div class="a">HashiCorp Configuration Language — Terraform konfiqurasiyalarının yazıldığı dil. Əsas elementlər: <b>bloklar</b> (<code>{ }</code> ilə: resource, variable, provider…), <b>arqumentlər</b> (blok daxilində açar = dəyər cütləri), <b>ifadələr və interpolyasiya</b> (<code>${var.env}-vpc</code> — string içində dəyər). İnsan üçün oxunaqlı olması əsas dizayn məqsədidir.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Immutable infrastructure nədir və Terraform onu necə dəstəkləyir?</div>
+  <div class="a">İşləyən komponentləri <b>dəyişdirmək əvəzinə yenisi ilə əvəzləmək</b> praktikasıdır. Terraform deklarativ olduğu üçün buna təbii uyğundur: konfiqurasiya dəyişəndə plan çıxarır və lazım gələndə resursu silib yenidən yaradır (<code>-/+</code> replace). Nəticə: ardıcıllıq, təkrarlanabilirlik və asan geri qayıtma.</div></div>
+
+  <p class="section-title" id="axin">2 · İş axını (init → plan → apply → destroy)</p>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span><code>terraform init</code> nə edir?</div>
+  <div class="a">İş qovluğunu hazırlayır: konfiqurasiyada göstərilən <b>provider-ləri və modulları endirir</b>, backend-i qurur. Layihə ilə işin ilk addımıdır; qayda: <b>yeni provider VƏ YA yeni modul əlavə olundu = yenidən init</b>.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span><code>terraform plan</code> nə üçündür?</div>
+  <div class="a">İcra planının <b>önizləməsi</b>: konfiqurasiyanı (istənilən vəziyyət) mövcud state ilə müqayisə edib nəyin yaradılacağını (<code>+</code>), dəyişəcəyini (<code>~</code>) və silinəcəyini (<code>-</code>) göstərir. Heç nəyi dəyişmir — "dry run"dır. Apply-dan əvvəl xətaları və gözlənilməz dəyişiklikləri tutmaq üçün mütləq oxunmalıdır.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span><code>terraform apply</code> necə işləyir?</div>
+  <div class="a">Plandakı dəyişiklikləri <b>icra edir</b>: təsdiq istəyir (yes), platformanın API-lərini çağırıb resursları yaradır/dəyişir/silir və nəticəyə uyğun <b>state faylını yeniləyir</b>. Plan ilə fərqi bir cümlədə: plan = önizləmə (heç nə dəyişmir), apply = icra (real dəyişiklik).</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span><code>terraform destroy</code> nə edir və nəyə diqqət etməli?</div>
+  <div class="a">State-də olan <b>bütün idarə olunan resursları silir</b>. Geri dönməz əməliyyatdır — icradan əvvəl siyahını oxumaq və təsdiqi şüurlu vermək lazımdır. Vacib nüans: yalnız state-dəki resurslara toxunur; əl ilə (Terraform-dan kənar) yaradılmış resurslara <b>dəymir</b>.</div></div>
+
+  <p class="section-title" id="resurs">3 · Resurs, Provider, Data Source</p>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Terraform-da resource nədir?</div>
+  <div class="a">İdarə etmək istədiyin <b>infrastruktur komponentidir</b>: VM, şəbəkə, DB, DNS qeydi… Konfiqurasiyada <code>resource "tip" "ad" { }</code> bloku ilə bəyan olunur; hər resurs tipi konkret provider-ə aiddir. Terraform bu blok əsasında real resursu yaradır, yeniləyir və silir.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Provider nədir və Terraform-un imkanlarını necə genişləndirir?</div>
+  <div class="a">Terraform core ilə konkret platforma (AWS, Azure, vSphere…) arasında <b>plugin-körpüdür</b>: API kommunikasiyasını və autentifikasiyanı öz üzərinə götürür, həmin platformanın resource tiplərini və data source-larını təyin edir. Bir konfiqurasiyada bir neçə provider işlədilə bilər — multi-cloud və hibrid ssenarilərin təməli budur.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Provider alias nədir və nə vaxt lazımdır?</div>
+  <div class="a">Eyni provider-in <b>bir neçə fərqli konfiqurasiyasını</b> bir layihədə istifadə etməyə imkan verir. Klassik ssenari: resursları iki fərqli AWS regionunda yaratmaq:
+<pre><code>provider "aws" { region = "eu-north-1" }
+provider "aws" { region = "eu-west-1"  alias = "ireland" }
+
+resource "aws_s3_bucket" "backup" {
+  provider = aws.ireland   # bu bucket İrlandiyada yaranacaq
+  ...
+}</code></pre></div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Data source nədir və resource-dan fərqi nədir?</div>
+  <div class="a">Data source mövcud məlumatı <b>oxuyur</b> — yaratmır, dəyişmir, silmir. Nümunələr: ən son Ubuntu AMI-sini tapmaq, mövcud VPC-nin ID-sini almaq, regionun AZ siyahısını oxumaq. Resource isə resursu <b>yaradır və həyatını idarə edir</b>. Düstur: resource = yaradır ✚, data = tapır 🔍.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Output ilə data source-un fərqi nədir?</div>
+  <div class="a"><b>Output</b> — öz konfiqurasiyanın nəticəsini <b>kənara verir</b> (apply-dan sonra göstərilir, modullar arasında ötürülür). <b>Data source</b> — kənar/mövcud məlumatı <b>içəri gətirir</b>. İstiqamətləri əksdir: output = ixrac, data = idxal.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Resurslar arasında asılılıqlar necə idarə olunur?</div>
+  <div class="a">Əsasən <b>avtomatik</b>: bir resurs digərinə istinad edəndə (<code>vpc_id = aws_vpc.prd.id</code>) Terraform <b>implicit dependency</b> qurur və yaradılış sırasını özü müəyyən edir. İstinadla ifadə olunmayan "gizli" asılılıqlar üçün <code>depends_on</code> meta-arqumenti var — amma tövsiyə implicit-ə üstünlük verməkdir: kod daha oxunaqlı qalır.</div></div>
+
+  <p class="section-title" id="deyisen">4 · Dəyişənlər, tfvars, Outputs, Locals</p>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Variable nədir və necə təyin olunur?</div>
+  <div class="a">Konfiqurasiyaya kənardan dəyər ötürməyə imkan verən <b>parametrdir</b> — kodun təkrar istifadəsinin açarı. <code>variable</code> bloku ilə bəyan olunur: ad, <code>type</code>, <code>description</code>, istəyə görə <code>default</code>. Default yoxdursa, dəyərin verilməsi məcburidir. Kodda <code>var.ad</code> ilə istinad olunur.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span><code>terraform.tfvars</code> faylı nə üçündür?</div>
+  <div class="a">Terraform-un <b>avtomatik yüklədiyi</b> dəyər faylıdır: dəyişənlərə dəyərləri variables.tf-dəki default-lara toxunmadan burada verirsən. Məntiq ayrılığı yaradır: <b>bəyan</b> (variables.tf) ↔ <b>dəyərlər</b> (tfvars). Prioritet zənciri: default &lt; <code>TF_VAR_</code> env dəyişəni &lt; tfvars &lt; CLI <code>-var</code> (ən güclü).</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Dəyişənlərə kodda necə istinad olunur? İnterpolyasiya nədir?</div>
+  <div class="a">Birbaşa: <code>instance_type = var.instance_type</code>. String <b>içində</b> dəyər lazım olanda interpolyasiya işlədilir — <code>${}</code> sintaksisi:
+<pre><code>tags = { Name = "web-${var.environment}" }   # nəticə: "web-dev"</code></pre></div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Output nə üçündür?</div>
+  <div class="a">İki vəzifəsi var: <b>(1)</b> apply-dan sonra seçilmiş dəyərləri (VPC ID, server IP…) insana göstərmək — <code>terraform output</code> ilə istənilən vaxt baxılır; <b>(2)</b> modulun "return" dəyəri olmaq — kənar kod modulun içinə yalnız output vasitəsilə çatır: <code>module.vpc.vpc_id</code>.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Locals nədir və oxunaqlılığı necə artırır?</div>
+  <div class="a">Təkrarlanan/mürəkkəb ifadələrə <b>ad verən daxili dəyərlərdir</b>: bir dəfə hesabla, hər yerdə <code>local.ad</code> ilə istifadə et. Faydası: təkrarın azalması, mürəkkəb ifadələrin sadələşməsi, dəyişikliyin bir nöqtədən idarəsi. Variable ilə fərqi: variable <b>kənardan</b> gəlir, local <b>daxildə</b> hesablanır və kənardan dəyişdirilə bilmir.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Terraform-da şərti məntiq (if-else) necə qurulur?</div>
+  <div class="a">Klassik if-else yoxdur — üç mexanizmlə əvəzlənir: <b>(1)</b> üçlü operator: <code>count = var.create_instance ? 1 : 0</code> — resursu şərtlə yarat/yaratma; <b>(2)</b> for_each üzərində filter: <code>for_each = { for k, v in var.items : k =&gt; v if v.enabled }</code>; <b>(3)</b> locals-da şərti ifadələr. </div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Dynamic block nədir və dəyişənlərlə necə işləyir?</div>
+  <div class="a">Resurs daxilindəki <b>təkrarlanan iç-blokları</b> (məsələn, security group-un çoxlu ingress qaydası) dinamik yaratmaq üçündür:
+<pre><code>dynamic "ingress" {
+  for_each = var.rules
+  content {
+    from_port = ingress.value.port
+    to_port   = ingress.value.port
+    protocol  = "tcp"
+  }
+}</code></pre>
+  <code>var.rules</code> map/list dəyişənidir — hər elementi üçün bir <code>ingress</code> bloku yaranır.</div></div>
+
+  <p class="section-title" id="state">5 · State, Backend-lər, Locking</p>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>State faylının məqsədi nədir?</div>
+  <div class="a"><code>terraform.tfstate</code> — Terraform-un <b>yaddaşıdır</b>: idarə olunan resursları, konfiqurasiyalarını və aralarındakı əlaqələri saxlayır. Kod (istənilən vəziyyət) ilə real infrastruktur arasında <b>xəritə</b> rolunu oynayır — plan/apply nəyin əlavə/dəyişdirilməli/silinməli olduğunu məhz state ilə müqayisədən çıxarır. "Source of truth"dur: əl ilə redaktə edilmir, git-ə qoyulmur.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Remote backend nədir və niyə vacibdir?</div>
+  <div class="a">State faylını lokal qovluqda deyil, <b>mərkəzi/paylaşılan yerdə</b> (Amazon S3, Azure Storage, HashiCorp Consul, Terraform Cloud) saxlamaqdır. Faydaları: <b>əməkdaşlıq</b> (hamı eyni state ilə işləyir), <b>locking</b> (paralel dəyişikliyin qarşısı), <b>ardıcıllıq</b> (vahid mənbə), <b>təhlükəsizlik</b> (laptop itsə state itmir).</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Backend tipləri hansılardır?</div>
+  <div class="a"><b>Local</b> — state öz maşınında (default; komanda işinə uyğun deyil) · <b>Remote</b> — S3, Azure Storage, Consul kimi paylaşılan saxlama · <b>Enhanced remote</b> — saxlamadan əlavə uzaqdan icra da verən Terraform Cloud/Enterprise.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>State locking nədir və komanda mühitində niyə kritikdir?</div>
+  <div class="a">Eyni state üzərində <b>paralel əməliyyatların qarşısını alan</b> mexanizmdir. Proses: əməliyyatdan əvvəl kilid <b>alınır</b> → iş görülür → kilid <b>buraxılır</b>. Bu olmasa, iki nəfər eyni anda apply etsə, state korlana və resurslar ziddiyyətə düşə bilər. Remote backend-lər (S3+DynamoDB, Terraform Cloud) locking-i daxilən dəstəkləyir.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Infrastructure drift nədir və Terraform onu necə idarə edir?</div>
+  <div class="a">Drift — real infrastrukturun koddan <b>kənara sürüşməsidir</b> (kimsə konsoldan əl ilə dəyişiklik edəndə). Terraform növbəti <code>plan</code>-da state/real müqayisəsi ilə fərqi <b>aşkarlayır</b> və <code>apply</code> ilə infrastrukturu kodda yazılan vəziyyətə <b>qaytarır</b>. Qızıl qayda: Terraform ilə qurulana əl ilə toxunma — hər dəyişiklik koddan keçsin.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span><code>terraform import</code> nədir və nə vaxt istifadə olunur?</div>
+  <div class="a">Terraform-dan <b>kənarda yaradılmış mövcud resursu</b> Terraform idarəsinə gətirir — resursu state-ə bağlayır:
+<pre><code>terraform import aws_instance.example i-0123456789abcdef0</code></pre>
+  Diqqət ediləsi: əvvəlcə resursa uyğun <b>konfiqurasiya bloku yazılmalıdır</b> (import kod yaratmır, yalnız state-ə salır), resursun düzgün ID-si verilməli və importdan sonra <code>plan</code> ilə kod↔real uyğunluğu yoxlanmalıdır.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Kənarda silinmiş resursu Terraform necə görür?</div>
+  <div class="a">Növbəti plan/apply-da refresh zamanı resursun yoxluğunu aşkarlayır və iki yol var: konfiqurasiyada hələ varsa — <b>yenidən yaratmağı</b> təklif edir ("1 to add"); resurs artıq lazım deyilsə — kodu silirsən və state sinxronlaşır. Əks ssenari (state itib, resurs durur) üçün <code>terraform import</code> işlədilir.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Komandada state idarəsinin çətinlikləri və ən yaxşı praktikaları hansılardır?</div>
+  <div class="a"><b>Çətinliklər:</b> paralel dəyişikliklər, dəyişikliklərin görünürlüyü, ardıcıllıq. <b>Praktikalar:</b> paylaşılan remote backend + state locking · state fayllarına incə tənzimlənmiş giriş nəzarəti · audit loqları · müntəzəm backup · CI/CD-də ayrıca workspace/state-lər.</div></div>
+
+  <p class="section-title" id="modul">6 · Modullar</p>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Modul ilə resursun fərqi nədir?</div>
+  <div class="a">Resource — <b>tək tikinti daşıdır</b> (bir VM, bir şəbəkə). Modul — resursları <b>qablaşdıran təkrar istifadə edilə bilən paketdir</b>: input (variables) → resurslar → output. Resurslar binanın kərpicidirsə, modullar hazır otaq layihələridir — bir dəfə yaz, fərqli parametrlərlə dönə-dönə çağır.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span>Modullar kod təkrarını və saxlanılmanı necə yaxşılaşdırır?</div>
+  <div class="a"><b>Təkrar istifadə</b> (bir VPC modulu → dev/staging/prd üçün üç çağırış) · <b>abstraksiya</b> (istifadəçi daxili detalları bilmir, yalnız input/output görür) · <b>ardıcıllıq</b> (bütün mühitlər eyni qəlibdən çıxır) · <b>saxlanılma</b> (düzəliş bir yerdə edilir, hamı faydalanır).</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Modullar arasında asılılıqlar necə qurulur?</div>
+  <div class="a">Əsas yol: bir modulun <b>output-unu</b> digərinin <b>input-una</b> ötürmək — <code>vpc_id = module.network.vpc_id</code>. Terraform bu istinaddan icra sırasını özü çıxarır. Böyük sistemlərdə ayrı state-lər arasında <code>terraform_remote_state</code> data source-u da işlədilir (irəli mövzu).</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Modul versiyalaması necə aparılır?</div>
+  <div class="a">Modul ayrıca repo/qovluqda saxlanılır və <b>semantic versioning</b> (v1.2.3) ilə tag-lənir; çağıran tərəf versiyanı <b>pin edir</b> (<code>version = "~&gt; 1.2"</code>). Əlavə praktikalar: release notes/changelog, Terraform Registry və ya şirkətdaxili module registry, aydın sənədləşdirilmiş input/output müqaviləsi.</div></div>
+
+  <p class="section-title" id="coxaltma">7 · count, for_each, lifecycle</p>
+
+  <div class="qa"><div class="q"><span class="lvl l1">🟢</span><code>count</code> ilə <code>for_each</code>-in fərqi nədir?</div>
+  <div class="a">İkisi də bir blokdan <b>çox nüsxə</b> yaradan meta-arqumentlərdir. <b>count</b> — rəqəmlə işləyir (<code>count = 3</code> → nüsxələr [0],[1],[2]); siyahının ortasından element silinəndə qalanların indeksi sürüşür və Terraform onları <b>yenidən yaratmaq</b> istəyir. <b>for_each</b> — map/set üzərində açarla işləyir (nüsxələr ["a"],["b"]); hər element öz açarında sabitdir, ona görə praktikada üstün tutulur.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>count/for_each modullarla da işləyir?</div>
+  <div class="a">Bəli — modul çağırışını da çoxaltmaq olar:
+<pre><code>module "vpc" {
+  source   = "./modules/vpc"
+  for_each = { dev = "10.1.0.0/16", prd = "10.0.0.0/16" }
+
+  vpc_cidr_block = each.value
+  vpc_name       = "${each.key}-vpc"
+}</code></pre>
+  Nəticə: iki müstəqil VPC — <code>module.vpc["dev"]</code> və <code>module.vpc["prd"]</code>.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Lifecycle bloku nədir və hansı parametrləri var?</div>
+  <div class="a">Resursun həyat dövrü davranışını tənzimləyir: <b><code>create_before_destroy</code></b> — replace zamanı əvvəl yenisini yarat, sonra köhnəni sil (sıfır-kəsinti) · <b><code>prevent_destroy</code></b> — kritik resursun (prod DB!) təsadüfi silinməsinə sığorta · <b><code>ignore_changes</code></b> — seçilmiş atributlardakı kənar dəyişiklikləri görməzdən gəl.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Null resource nədir və nə vaxt lazımdır?</div>
+  <div class="a">Real platformada qarşılığı olmayan "boş" resursdur — hədəf infrastrukturda heç nə yaratmır. İstifadə yerləri: resurslar arasında süni asılılıq körpüsü qurmaq, <code>triggers</code> ilə dəyişikliyə reaksiya verib skript işlətmək, lokal provisioner-ləri resurssuz icra etmək. Müasir alternativi çox halda <code>terraform_data</code> resursudur.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Resource targeting (<code>-target</code>) nədir?</div>
+  <div class="a"><code>terraform apply -target=aws_vpc.prd</code> — əməliyyatı <b>konkret resursla məhdudlaşdırır</b>. İstifadəsi: təcili nöqtəvi düzəliş, riskin azaldılması, icra vaxtına qənaət. Xəbərdarlıq: gündəlik alət deyil — state-i qismən yeniləyir, asılılıqlar kənarda qala bilər; müntəzəm istifadəsi anti-pattern sayılır.</div></div>
+
+  <p class="section-title" id="muhit">8 · Mühitlər, Workspaces, Komanda işi</p>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Terraform workspaces nədir?</div>
+  <div class="a">Eyni konfiqurasiya dəstinin <b>bir neçə müstəqil nüsxəsini</b> idarə etməyə imkan verir — hər workspace-in <b>öz state faylı</b> olur. Tipik istifadə: dev/staging/prd mühitləri. Əmrlər: <code>terraform workspace new dev</code>, <code>terraform workspace select prd</code>; kodda <code>terraform.workspace</code> ilə cari ada müraciət olunur.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Mühitləri (dev/staging/prd) idarə etməyin yolları və müqayisəsi?</div>
+  <div class="a">İki əsas yanaşma: <b>(1) workspaces</b> — bir kod bazası, ayrı state-lər; sadə, təkrarsız, kiçik komandalar üçün rahat; <b>(2) ayrı qovluqlar/backend key-lər</b> — hər mühitin öz konfiqurasiyası; daha şəffaf, mühitlər arasında fərqlər böyüyəndə və icazələr ayrılanda üstündür. Böyük təşkilatlarda adətən ikinci yanaşma + modullar kombinasiyası işlədilir.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Terraform Git ilə necə istifadə olunur?</div>
+  <div class="a">Konfiqurasiya adi kod kimi idarə olunur: repo + müntəzəm commit/push · dəyişikliklər <b>branch + pull request</b> ilə (kod baxışı!) · buraxılışlar tag-lənir · CI-da minimum <code>fmt -check</code> və <code>validate</code>, sonra plan/apply pipeline-ı. Git-ə girməyənlər: state faylları, <code>.terraform/</code>, secrets olan tfvars.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Terraform kodunun təşkili üzrə ən yaxşı praktikalar hansılardır?</div>
+  <div class="a"><ul>
+    <li>Modular struktur — təkrar istifadə edilə bilən modullar</li>
+    <li>Mühit ayrımı — workspaces və ya qovluq strukturu ilə</li>
+    <li>Dəyişənlərlə parametrləşdirmə, adlandırma konvensiyaları</li>
+    <li>Remote backend + state locking</li>
+    <li>Versiya nəzarəti + kod baxışı (PR) prosesi</li>
+    <li>Provider/modul versiyalarının pin edilməsi, lock faylının commit olunması</li>
+    <li>Şərhlər və README ilə sənədləşdirmə</li>
+  </ul></div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>CI/CD pipeline-da Terraform-un çətinlikləri və praktikaları?</div>
+  <div class="a"><b>Çətinliklər:</b> state ardıcıllığı, paralel işə salınmalar, icazələrin idarəsi. <b>Praktikalar:</b> remote backend + locking · mühit başına ayrıca state/workspace · pipeline axını: <code>fmt → validate → plan (artefakt kimi saxla) → əl təsdiqi → apply</code> · pipeline konfiqurasiyasının özünü də kod kimi saxlamaq · uğursuzluqda bildiriş + geri qayıtma strategiyası (tag-lənmiş son işlək vəziyyət, state backup-ları).</div></div>
+
+  <p class="section-title" id="secret">9 · Secrets və Həssas Məlumat</p>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Terraform-da həssas məlumat (parol, API açarı) necə idarə olunur?</div>
+  <div class="a">Əsas qayda: <b>konfiqurasiya faylına açıq mətnlə yazma</b>. Yollar: dəyişəndə <code>sensitive = true</code> (plan çıxışında gizlədilir) · dəyəri <b>env dəyişəni</b> ilə vermək (<code>TF_VAR_db_password</code>) · xüsusi secret alətləri ilə inteqrasiya — HashiCorp Vault, AWS Secrets Manager, cloud parameter store-ları. Unutma: dəyər yenə <b>state-ə düşə bilər</b> — ona görə state-in özü qorunmalı və git-dən kənar saxlanmalıdır.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Secret rotation (məsələn, DB parolunun dövri dəyişməsi) Terraform ilə necə həll olunur?</div>
+  <div class="a">Terraform rotasiyanı <b>özü etmir</b> — kənar alətlərlə qurulur: Vault/Secrets Manager-in avtomatik rotation funksiyaları (Terraform yalnız secret-ə istinad edir), CI/CD pipeline-ında planlı yeniləmə addımı, və ya rolling qaydada tətbiq (kəsintini azaltmaq üçün). Yanaşma: "secret-in sahibi secret meneceri olsun, Terraform yalnız ünvanını bilsin".</div></div>
+
+  <p class="section-title" id="prov">10 · Provisioners (qısa tanışlıq)</p>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Provisioner nədir? <code>remote-exec</code> nə edir?</div>
+  <div class="a">Provisioner — resurs yaradılandan <b>sonra</b> skript/əmr icra edən mexanizmdir: <b><code>local-exec</code></b> — skripti öz maşınında işlədir; <b><code>remote-exec</code></b> — yaradılan uzaq maşında işlədir (SSH ilə qoşulub paket qurmaq, bootstrap etmək). Rolu: ilkin konfiqurasiya/bootstrapping. Vacib qeyd: HashiCorp provisioner-ləri <b>son çarə</b> sayır — konfiqurasiya idarəsi üçün düzgün alətlər Ansible/cloud-init/Packer-dir.</div></div>
+
+  <p class="section-title" id="eko">11 · Ekosistem: Cloud, Enterprise, Multi-cloud</p>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Terraform Cloud nədir?</div>
+  <div class="a">HashiCorp-un idarə olunan xidmətidir — Terraform iş axınlarına əlavə imkanlar verir: <b>uzaqdan icra</b> (plan/apply idarə olunan mühitdə) · <b>remote state</b> saxlama + locking · komanda əməkdaşlığı · <b>Sentinel</b> ilə policy-as-code (qaydaların məcburi tətbiqi) · şəxsi modul registry-si. Kiçik komandalar üçün pulsuz səviyyəsi var.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Terraform Enterprise nədir və açıq mənbədən nə ilə fərqlənir?</div>
+  <div class="a">Böyük təşkilatlar üçün <b>kommersiya təklifidir</b> (öz infrastrukturunda qurulan Terraform Cloud). Açıq mənbə üzərinə əlavə etdiyi: geniş əməkdaşlıq və icazə idarəsi (RBAC/SSO) · mərkəzi state + audit loqları · VCS inteqrasiyalı avtomatik iş axınları · policy enforcement · şəxsi modul registry. Açıq mənbə fərdi/kiçik komandaya bəs edir; Enterprise idarəetmə (governance) tələbləri olan miqyas üçündür.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l2">🟡</span>Terraform ilə multi-cloud necə idarə olunur?</div>
+  <div class="a">Bir konfiqurasiyada <b>bir neçə provider bloku</b> təyin edilir (aws + azurerm + google…), resurslar öz provider-inin tipləri ilə yazılır, ümumi məntiq dəyişənlər/modullarla parametrləşdirilir. Terraform-un dəyəri: <b>bir dil, bir iş axını</b> (init→plan→apply) bütün platformalarda — hər cloud üçün ayrıca alət öyrənmək lazım gəlmir.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Terraform-un CI/CD alətləri (Jenkins, GitLab CI…) ilə birləşdirilməsinin faydaları?</div>
+  <div class="a">Avtomatlaşdırma (əl apply-larının aradan qalxması) · versiya nəzarətli, izlənilə bilən deployment-lər · mühitlər arasında ardıcıllıq · plan-ın PR-da görünməsi (dəyişikliyin baxışı) · audit izi · miqyaslanma. Tipik axın: PR → CI-da fmt/validate/plan → baxış+təsdiq → merge → apply.</div></div>
+
+  <div class="qa"><div class="q"><span class="lvl l3">🔴</span>Uğursuz deployment zamanı geri qayıtma (rollback) strategiyaları hansılardır?</div>
+  <div class="a">Terraform-da klassik "rollback düyməsi" yoxdur — strategiya qabaqcadan qurulur: işlək vəziyyətlər <b>VCS tag-ları</b> ilə işarələnir (geri qayıtmaq = köhnə tag-ı apply etmək) · state fayllarının müntəzəm <b>backup-ı</b> · pipeline-da erkən xəbərdarlıq (plan mərhələsində tutmaq) · kritik resurslarda <code>prevent_destroy</code> + <code>create_before_destroy</code>. Fəlsəfə: irəliyə doğru düzəliş (roll forward) çox vaxt geri qayıtmadan asandır.</div></div>
+
+  <div class="tip" style="background:#F0FAF4; border:1px solid #C3E4D0; border-left:4px solid #00A859; padding:12px 16px; border-radius:0 8px 8px 0; margin-top:24px; font-size:0.85rem;">
+    ✅ <b>Müsahibəyə hazırlaşarkən:</b> 🟢 sualları kursun özündən bilirsən — slaydlara qayıt; 🟡 sualların əsası kursda var, cavabı bir dəfə ucadan danışıb möhkəmləndir; 🔴 sualları isə bu sənəddən oxu + rəsmi sənədlərdə dərinləş. Ən yaxşı hazırlıq üsulu: hər cavabı <b>öz sözlərinlə</b> izah edə bilmək.
+  </div>
+
+</main>
+
+<footer>
+  Data Platform &amp; Engineering Bootcamp · DPE-07 · Bonus material ·
+  <a href="terraform-dili-soraq.html">← Soraq Kitabçası</a> · <a href="../index.html">Ana səhifə</a>
+</footer>
+
+</body>
+</html>
